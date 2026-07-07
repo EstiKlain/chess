@@ -1,200 +1,230 @@
 #include <cctype>
 #include <cmath>
-#include <functional>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 // ============================================================
-// Data model — stage 1
+// CONFIG — every invented / tunable number lives here ONLY.
+// When the assignment gives real values, change them here and
+// nowhere else. The engine below never hard-codes these.
 // ============================================================
+namespace config
+{
 
-struct Board {
+    // Pixel size of one cell: click x y -> cell (x / CELL_SIZE, y / CELL_SIZE).
+    constexpr int CELL_SIZE = 100;
+
+    // Per-piece tunables. Add fields here (e.g. a movement pattern)
+    // as future iterations introduce new rules.
+    struct PieceStats
+    {
+        double speedCellsPerSec; // travel speed
+        long restMs;             // cooldown after arriving (future; not enforced yet)
+    };
+
+    // !!! PLACEHOLDER VALUES — NOT from the spec. Replace when known. !!!
+    inline PieceStats statsFor(char piece)
+    {
+        switch (piece)
+        {
+        case 'Q':
+            return {4.0, 0};
+        case 'R':
+            return {3.0, 0};
+        case 'B':
+            return {3.0, 0};
+        case 'N':
+            return {3.5, 0};
+        case 'K':
+            return {3.0, 0};
+        case 'P':
+            return {2.0, 0};
+        default:
+            return {0.0, 0}; // unreachable after validation
+        }
+    }
+}
+
+// ============================================================
+// DATA MODEL
+// ============================================================
+struct Board
+{
     std::vector<std::vector<std::string>> grid;
+    int rows() const { return (int)grid.size(); }
+    int cols() const { return grid.empty() ? 0 : (int)grid[0].size(); }
 };
 
-// Carries a VPL-style error code (e.g. "UNKNOWN_TOKEN").
-// Thrown by validate_board, caught once in main().
-class BoardError : public std::runtime_error {
-public:
-    explicit BoardError(const std::string& code)
-        : std::runtime_error(code), code_(code) {}
-    const std::string& code() const { return code_; }
-
-private:
-    std::string code_;
-};
-
-// ============================================================
-// Data model — stage 2 additions
-// ============================================================
-
-struct Selection {
+struct Selection
+{
     bool active = false;
-    int row = 0;
-    int col = 0;
+    int row = 0, col = 0;
 };
 
-struct PieceMove {
+struct PieceMove
+{
     int fromRow, fromCol;
     int toRow, toCol;
     long startMs;
     long durationMs;
 };
 
-struct GameState {
+struct GameState
+{
     Board board;
     long elapsedMs = 0;
     Selection selection;
     std::vector<PieceMove> activeMoves;
 };
 
-// ============================================================
-// Small string helpers
-// ============================================================
+// Error code carrier (e.g. "UNKNOWN_TOKEN"); thrown by validate, caught in main.
+class BoardError : public std::runtime_error
+{
+public:
+    explicit BoardError(const std::string &code)
+        : std::runtime_error(code), code_(code) {}
+    const std::string &code() const { return code_; }
 
-std::string trim(const std::string& value) {
-    size_t start = 0;
-    while (start < value.size() &&
-           std::isspace(static_cast<unsigned char>(value[start]))) {
-        ++start;
-    }
-    size_t end = value.size();
-    while (end > start &&
-           std::isspace(static_cast<unsigned char>(value[end - 1]))) {
-        --end;
-    }
-    return value.substr(start, end - start);
+private:
+    std::string code_;
+};
+
+// ============================================================
+// STRING HELPERS
+// ============================================================
+std::string trim(const std::string &v)
+{
+    size_t a = 0, b = v.size();
+    while (a < b && std::isspace((unsigned char)v[a]))
+        ++a;
+    while (b > a && std::isspace((unsigned char)v[b - 1]))
+        --b;
+    return v.substr(a, b - a);
 }
 
-std::vector<std::string> splitWords(const std::string& line) {
-    std::vector<std::string> tokens;
-    std::istringstream stream(line);
-    std::string token;
-    while (stream >> token) {
-        tokens.push_back(token);
-    }
-    return tokens;
+std::vector<std::string> splitWords(const std::string &line)
+{
+    std::vector<std::string> out;
+    std::istringstream ss(line);
+    std::string tok;
+    while (ss >> tok)
+        out.push_back(tok);
+    return out;
 }
 
 // ============================================================
-// Layer 1 — parse_sections
+// LAYER 1 — split input into Board / Commands sections
 // ============================================================
-
-struct Sections {
+struct Sections
+{
     std::vector<std::string> boardLines;
     std::vector<std::string> commandLines;
 };
 
-Sections parse_sections(const std::string& text) {
-    Sections sections;
+Sections parseSections(const std::string &text)
+{
+    Sections s;
     std::istringstream stream(text);
     std::string line;
-    bool inBoard = false;
-    bool inCommands = false;
+    enum
+    {
+        NONE,
+        BOARD,
+        COMMANDS
+    } where = NONE;
 
-    while (std::getline(stream, line)) {
-        std::string trimmed = trim(line);
-
-        if (trimmed == "Board:") {
-            inBoard = true;
-            inCommands = false;
+    while (std::getline(stream, line))
+    {
+        std::string t = trim(line);
+        if (t == "Board:")
+        {
+            where = BOARD;
             continue;
         }
-        if (trimmed == "Commands:") {
-            inBoard = false;
-            inCommands = true;
+        if (t == "Commands:")
+        {
+            where = COMMANDS;
             continue;
         }
-        if (trimmed.empty()) {
+        if (t.empty())
+        {
             continue;
         }
-
-        if (inBoard) {
-            sections.boardLines.push_back(trimmed);
-        } else if (inCommands) {
-            sections.commandLines.push_back(trimmed);
-        }
+        if (where == BOARD)
+            s.boardLines.push_back(t);
+        else if (where == COMMANDS)
+            s.commandLines.push_back(t);
     }
-    return sections;
+    return s;
 }
 
 // ============================================================
-// Layer 2 — parse_board
+// LAYER 2 — build the board
 // ============================================================
-
-Board parse_board(const std::vector<std::string>& boardLines) {
-    Board board;
-    for (const std::string& line : boardLines) {
-        board.grid.push_back(splitWords(line));
-    }
-    return board;
+Board parseBoard(const std::vector<std::string> &boardLines)
+{
+    Board b;
+    for (const auto &line : boardLines)
+        b.grid.push_back(splitWords(line));
+    return b;
 }
 
 // ============================================================
-// Layer 3 — validate_board
+// LAYER 3 — validation
 // ============================================================
-
-bool isValidToken(const std::string& token) {
-    if (token == ".") {
+bool isValidToken(const std::string &t)
+{
+    if (t == ".")
         return true;
-    }
-    if (token.size() != 2) {
+    if (t.size() != 2)
         return false;
-    }
-    char color = token[0];
-    char piece = token[1];
-    if (color != 'w' && color != 'b') {
+    if (t[0] != 'w' && t[0] != 'b')
         return false;
-    }
-    switch (piece) {
-        case 'K':
-        case 'Q':
-        case 'R':
-        case 'B':
-        case 'N':
-        case 'P':
-            return true;
-        default:
-            return false;
+    switch (t[1])
+    {
+    case 'K':
+    case 'Q':
+    case 'R':
+    case 'B':
+    case 'N':
+    case 'P':
+        return true;
+    default:
+        return false;
     }
 }
 
-void validate_board(const Board& board) {
-    if (board.grid.empty()) {
+void validateBoard(const Board &b)
+{
+    if (b.grid.empty())
         return;
-    }
 
-    size_t expectedCols = board.grid[0].size();
-    for (const auto& row : board.grid) {
-        if (row.size() != expectedCols) {
+    size_t expected = b.grid[0].size();
+    for (const auto &row : b.grid) // structural check
+        if (row.size() != expected)
             throw BoardError("ROW_WIDTH_MISMATCH");
-        }
-    }
 
-    for (const auto& row : board.grid) {
-        for (const std::string& token : row) {
-            if (!isValidToken(token)) {
+    for (const auto &row : b.grid) // token check
+        for (const auto &tok : row)
+            if (!isValidToken(tok))
                 throw BoardError("UNKNOWN_TOKEN");
-            }
-        }
-    }
 }
 
 // ============================================================
-// Layer 4 — format_board
+// LAYER 4 — formatting
 // ============================================================
-
-std::string format_board(const Board& board) {
+std::string formatBoard(const Board &b)
+{
     std::ostringstream out;
-    for (const auto& row : board.grid) {
-        for (size_t j = 0; j < row.size(); ++j) {
-            if (j > 0) {
+    for (const auto &row : b.grid)
+    {
+        for (size_t j = 0; j < row.size(); ++j)
+        {
+            if (j)
                 out << ' ';
-            }
             out << row[j];
         }
         out << '\n';
@@ -203,175 +233,170 @@ std::string format_board(const Board& board) {
 }
 
 // ============================================================
-// Stage 2 — piece speed / distance helpers
-//
-// !!! PLACEHOLDER VALUES — NOT FROM THE ASSIGNMENT !!!
-// Neither the general RTS-chess writeup nor the stage-2 spec
-// gives concrete "cells per second" numbers. The writeup only
-// gave a RELATIVE ordering (queen fastest, bishop/rook medium,
-// knight "unique", pawn slowest, king medium). These exact
-// numbers are invented so the code runs — CONFIRM against the
-// real assignment/instructor before relying on them, and update
-// this table once real values are known.
+// MOVE ENGINE
 // ============================================================
+bool isEmpty(const std::string &tok) { return tok == "."; }
+char colorOf(const std::string &tok) { return tok[0]; }
+char pieceOf(const std::string &tok) { return tok[1]; }
 
-double pieceSpeed(char pieceLetter) {
-    switch (pieceLetter) {
-        case 'Q': return 4.0;   // TODO: confirm real value
-        case 'R': return 3.0;   // TODO: confirm real value
-        case 'B': return 3.0;   // TODO: confirm real value
-        case 'N': return 3.5;   // TODO: confirm real value
-        case 'P': return 2.0;   // TODO: confirm real value
-        case 'K': return 3.0;   // TODO: confirm real value
-        default:  return 0.0;   // unreachable on a board that passed validate_board
-    }
-}
-
-bool isEmpty(const std::string& token) { return token == "."; }
-char colorOf(const std::string& token) { return token[0]; }
-
-double cellDistance(int r1, int c1, int r2, int c2) {
-    double dr = r2 - r1;
-    double dc = c2 - c1;
+double cellDistance(int r1, int c1, int r2, int c2)
+{
+    double dr = r2 - r1, dc = c2 - c1;
     return std::sqrt(dr * dr + dc * dc);
 }
 
-// ============================================================
-// Stage 2 — move resolution (called only from handleWait)
-// ============================================================
-
-void resolveMoves(GameState& state) {
-    std::vector<PieceMove> stillActive;
-    for (const auto& move : state.activeMoves) {
-        long arrival = move.startMs + move.durationMs;
-        if (state.elapsedMs >= arrival) {
-            std::string piece = state.board.grid[move.fromRow][move.fromCol];
-            state.board.grid[move.fromRow][move.fromCol] = ".";
-            state.board.grid[move.toRow][move.toCol] = piece;
-        } else {
-            stillActive.push_back(move);
-        }
-    }
-    state.activeMoves = stillActive;
+// EXTENSION SEAM — per-piece legality. Future iteration fills this in.
+// Returns true today so behaviour is unchanged.
+bool isLegalMove(const Board & /*board*/, const PieceMove & /*move*/, char /*piece*/)
+{
+    return true;
 }
 
-void cancelActiveMoveFrom(GameState& state, int row, int col) {
+// A move settles only once the clock passes its arrival time.
+// EXTENSION SEAM: rest/cooldown (config.restMs) will be applied here on arrival.
+void resolveMoves(GameState &st)
+{
+    std::vector<PieceMove> stillMoving;
+    for (const auto &m : st.activeMoves)
+    {
+        if (st.elapsedMs >= m.startMs + m.durationMs)
+        {
+            std::string piece = st.board.grid[m.fromRow][m.fromCol];
+            st.board.grid[m.fromRow][m.fromCol] = ".";
+            st.board.grid[m.toRow][m.toCol] = piece;
+        }
+        else
+        {
+            stillMoving.push_back(m);
+        }
+    }
+    st.activeMoves = stillMoving;
+}
+
+void cancelMoveFrom(GameState &st, int row, int col)
+{
     std::vector<PieceMove> kept;
-    for (const auto& move : state.activeMoves) {
-        if (!(move.fromRow == row && move.fromCol == col)) {
-            kept.push_back(move);
-        }
-    }
-    state.activeMoves = kept;
+    for (const auto &m : st.activeMoves)
+        if (!(m.fromRow == row && m.fromCol == col))
+            kept.push_back(m);
+    st.activeMoves = kept;
 }
 
 // ============================================================
-// Stage 2 — command handlers
+// COMMAND HANDLERS
 // ============================================================
+void handleClick(GameState &st, int x, int y)
+{
+    int col = x / config::CELL_SIZE;
+    int row = y / config::CELL_SIZE;
 
-void handleClick(GameState& state, int x, int y) {
-    int col = x / 100;
-    int row = y / 100;
+    if (row < 0 || row >= st.board.rows() ||
+        col < 0 || col >= st.board.cols())
+        return; // outside board — ignored
 
-    int rows = (int)state.board.grid.size();
-    int cols = rows > 0 ? (int)state.board.grid[0].size() : 0;
-    if (row < 0 || row >= rows || col < 0 || col >= cols) {
-        return; // outside the board — ignored
+    const std::string &token = st.board.grid[row][col];
+
+    if (!st.selection.active)
+    {
+        if (!isEmpty(token))
+            st.selection = {true, row, col};
+        return; // empty + no selection — ignored
     }
 
-    const std::string& token = state.board.grid[row][col];
+    const std::string &selected =
+        st.board.grid[st.selection.row][st.selection.col];
 
-    if (!state.selection.active) {
-        if (!isEmpty(token)) {
-            state.selection = {true, row, col};
-        }
-        return; // empty cell with no selection — ignored
-    }
-
-    const std::string& selectedToken =
-        state.board.grid[state.selection.row][state.selection.col];
-
-    if (!isEmpty(token) && colorOf(token) == colorOf(selectedToken)) {
-        state.selection = {true, row, col}; // friendly piece — replace selection
+    if (!isEmpty(token) && colorOf(token) == colorOf(selected))
+    {
+        st.selection = {true, row, col}; // friendly — replace selection
         return;
     }
 
-    PieceMove move;
-    move.fromRow = state.selection.row;
-    move.fromCol = state.selection.col;
-    move.toRow = row;
-    move.toCol = col;
-    move.startMs = state.elapsedMs;
+    // Build a move request from the selected piece to the target cell.
+    PieceMove m;
+    m.fromRow = st.selection.row;
+    m.fromCol = st.selection.col;
+    m.toRow = row;
+    m.toCol = col;
+    m.startMs = st.elapsedMs;
 
-    double distance = cellDistance(move.fromRow, move.fromCol, row, col);
-    double speed = pieceSpeed(selectedToken[1]);
-    move.durationMs = (long)(distance / speed * 1000.0);
+    char piece = pieceOf(selected);
+    double speed = config::statsFor(piece).speedCellsPerSec;
+    double dist = cellDistance(m.fromRow, m.fromCol, m.toRow, m.toCol);
+    m.durationMs = (speed > 0.0) ? (long)(dist / speed * 1000.0) : 0;
 
-    cancelActiveMoveFrom(state, move.fromRow, move.fromCol);
-    state.activeMoves.push_back(move);
-
-    // Design decision: selection is cleared once a move is sent.
-    state.selection = Selection{};
+    if (isLegalMove(st.board, m, piece))
+    {
+        cancelMoveFrom(st, m.fromRow, m.fromCol); // one move per piece at a time
+        st.activeMoves.push_back(m);
+    }
+    st.selection = Selection{}; // selection clears once a move is sent
 }
 
-void handleWait(GameState& state, long ms) {
-    state.elapsedMs += ms;
-    resolveMoves(state);
+void handleWait(GameState &st, long ms)
+{
+    st.elapsedMs += ms;
+    resolveMoves(st);
 }
 
 // ============================================================
-// Layer 5 — run_commands (dispatch)
+// LAYER 5 — command dispatch
 // ============================================================
-
-void run_commands(const std::vector<std::string>& commands, GameState& state) {
-    for (const std::string& command : commands) {
-        std::istringstream stream(trim(command));
+void runCommands(const std::vector<std::string> &commands, GameState &st)
+{
+    for (const auto &command : commands)
+    {
+        std::istringstream ss(command);
         std::string verb;
-        stream >> verb;
+        ss >> verb;
 
-        if (verb == "click") {
+        if (verb == "click")
+        {
             int x, y;
-            stream >> x >> y;
-            handleClick(state, x, y);
-        } else if (verb == "wait") {
-            long ms;
-            stream >> ms;
-            handleWait(state, ms);
-        } else if (verb == "print") {
-            std::string rest;
-            std::getline(stream, rest);
-            if (trim(rest) == "board") {
-                std::cout << format_board(state.board);
-            }
+            ss >> x >> y;
+            handleClick(st, x, y);
         }
-        // Unknown commands are silently ignored in this iteration.
+        else if (verb == "wait")
+        {
+            long ms;
+            ss >> ms;
+            handleWait(st, ms);
+        }
+        else if (verb == "print")
+        {
+            std::string rest;
+            std::getline(ss, rest);
+            if (trim(rest) == "board")
+                std::cout << formatBoard(st.board);
+        }
+        // unknown commands ignored this iteration
     }
 }
 
 // ============================================================
-// main
+// MAIN
 // ============================================================
+int main()
+{
+    std::string input, line;
+    while (std::getline(std::cin, line))
+        input += line + '\n';
 
-int main() {
-    std::string input;
-    std::string line;
-    while (std::getline(std::cin, line)) {
-        input += line;
-        input += '\n';
-    }
-
-    Sections sections = parse_sections(input);
+    Sections sections = parseSections(input);
 
     GameState state;
-    state.board = parse_board(sections.boardLines);
+    state.board = parseBoard(sections.boardLines);
 
-    try {
-        validate_board(state.board);
-    } catch (const BoardError& error) {
-        std::cout << "ERROR " << error.code() << '\n';
+    try
+    {
+        validateBoard(state.board);
+    }
+    catch (const BoardError &e)
+    {
+        std::cout << "ERROR " << e.code() << '\n';
         return 0;
     }
 
-    run_commands(sections.commandLines, state);
+    runCommands(sections.commandLines, state);
     return 0;
 }
