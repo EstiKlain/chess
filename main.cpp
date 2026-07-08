@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+// https://github.com/EstiKlain/chess.git
+
 namespace config
 {
 
@@ -43,34 +45,47 @@ namespace config
         }
     }
 
-    using MoveShapeFn = std::function<bool(int dRow, int dCol)>;
+    using MoveShapeFn = std::function<bool(int dRow, int dCol, char color)>;
 
-    inline bool kingShape(int dRow, int dCol)
+    inline bool kingShape(int dRow, int dCol, char /*color*/)
     {
         return (dRow != 0 || dCol != 0) && std::abs(dRow) <= 1 && std::abs(dCol) <= 1;
     }
-    inline bool rookShape(int dRow, int dCol)
+    inline bool rookShape(int dRow, int dCol, char /*color*/)
     {
         return (dRow == 0) != (dCol == 0);
     }
-    inline bool bishopShape(int dRow, int dCol)
+    inline bool bishopShape(int dRow, int dCol, char /*color*/)
     {
         return dRow != 0 && std::abs(dRow) == std::abs(dCol);
     }
-    inline bool queenShape(int dRow, int dCol)
+    inline bool queenShape(int dRow, int dCol, char /*color*/)
     {
-        return rookShape(dRow, dCol) || bishopShape(dRow, dCol);
+        return rookShape(dRow, dCol, ' ') || bishopShape(dRow, dCol, ' ');
     }
-    inline bool knightShape(int dRow, int dCol)
+    inline bool knightShape(int dRow, int dCol, char /*color*/)
     {
         int r = std::abs(dRow), c = std::abs(dCol);
         return (r == 1 && c == 2) || (r == 2 && c == 1);
+    }
+    inline int pawnForwardDir(char color)
+    {
+        return (color == 'w') ? -1 : 1;
+    }
+    inline bool pawnShape(int dRow, int dCol, char color)
+    {
+        return dCol == 0 && dRow == pawnForwardDir(color);
+    }
+    inline bool pawnCaptureShape(int dRow, int dCol, char color)
+    {
+        return std::abs(dCol) == 1 && dRow == pawnForwardDir(color);
     }
 
     struct MoveRule
     {
         MoveShapeFn shape;
         bool slides;
+        MoveShapeFn captureShape = nullptr;
     };
 
     inline std::map<char, MoveRule> moveShapes = {
@@ -79,6 +94,7 @@ namespace config
         {'R', {rookShape, true}},
         {'B', {bishopShape, true}},
         {'N', {knightShape, false}},
+        {'P', {pawnShape, false, pawnCaptureShape}},
     };
 }
 
@@ -294,20 +310,24 @@ bool isLegalMove(const Board &board, const PieceMove &move, char piece)
 {
     auto it = config::moveShapes.find(piece);
     if (it == config::moveShapes.end())
-        return true; // no rule registered yet (e.g. pawn) -> unrestricted for now
+        return true; // no rule registered yet -> unrestricted for now
 
     const config::MoveRule &rule = it->second;
+    char color = move.piece[0];
+
+    const std::string &destination = board.grid[move.toRow][move.toCol];
+    if (!isEmpty(destination) && colorOf(destination) == color)
+        return false;
+
+    bool isCapture = !isEmpty(destination);
+    const config::MoveShapeFn &shape = (isCapture && rule.captureShape) ? rule.captureShape : rule.shape;
 
     int dRow = move.toRow - move.fromRow;
     int dCol = move.toCol - move.fromCol;
-    if (!rule.shape(dRow, dCol))
+    if (!shape(dRow, dCol, color))
         return false;
 
     if (rule.slides && !isPathClear(board, move.fromRow, move.fromCol, move.toRow, move.toCol))
-        return false;
-
-    const std::string &destination = board.grid[move.toRow][move.toCol];
-    if (!isEmpty(destination) && colorOf(destination) == move.piece[0])
         return false;
 
     return true;
