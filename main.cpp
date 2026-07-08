@@ -306,6 +306,10 @@ bool isLegalMove(const Board &board, const PieceMove &move, char piece)
     if (rule.slides && !isPathClear(board, move.fromRow, move.fromCol, move.toRow, move.toCol))
         return false;
 
+    const std::string &destination = board.grid[move.toRow][move.toCol];
+    if (!isEmpty(destination) && colorOf(destination) == move.piece[0])
+        return false;
+
     return true;
 }
 
