@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <functional>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -11,6 +13,7 @@ namespace config
 {
 
     constexpr int CELL_SIZE = 100;
+
     constexpr int NUM_PLAYERS = 2;
 
     struct PieceStats
@@ -39,6 +42,44 @@ namespace config
             return {0.0, 0};
         }
     }
+
+    using MoveShapeFn = std::function<bool(int dRow, int dCol)>;
+
+    inline bool kingShape(int dRow, int dCol)
+    {
+        return (dRow != 0 || dCol != 0) && std::abs(dRow) <= 1 && std::abs(dCol) <= 1;
+    }
+    inline bool rookShape(int dRow, int dCol)
+    {
+        return (dRow == 0) != (dCol == 0);
+    }
+    inline bool bishopShape(int dRow, int dCol)
+    {
+        return dRow != 0 && std::abs(dRow) == std::abs(dCol);
+    }
+    inline bool queenShape(int dRow, int dCol)
+    {
+        return rookShape(dRow, dCol) || bishopShape(dRow, dCol);
+    }
+    inline bool knightShape(int dRow, int dCol)
+    {
+        int r = std::abs(dRow), c = std::abs(dCol);
+        return (r == 1 && c == 2) || (r == 2 && c == 1);
+    }
+
+    struct MoveRule
+    {
+        MoveShapeFn shape;
+        bool slides;
+    };
+
+    inline std::map<char, MoveRule> moveShapes = {
+        {'K', {kingShape, false}},
+        {'Q', {queenShape, true}},
+        {'R', {rookShape, true}},
+        {'B', {bishopShape, true}},
+        {'N', {knightShape, false}},
+    };
 }
 
 struct Board
@@ -212,6 +253,24 @@ bool isEmpty(const std::string &tok) { return tok == "."; }
 char colorOf(const std::string &tok) { return tok[0]; }
 char pieceOf(const std::string &tok) { return tok[1]; }
 
+int sign(int v) { return (v > 0) - (v < 0); }
+
+bool isPathClear(const Board &board, int fromRow, int fromCol, int toRow, int toCol)
+{
+    int stepRow = sign(toRow - fromRow);
+    int stepCol = sign(toCol - fromCol);
+
+    int r = fromRow + stepRow, c = fromCol + stepCol;
+    while (r != toRow || c != toCol)
+    {
+        if (!isEmpty(board.grid[r][c]))
+            return false;
+        r += stepRow;
+        c += stepCol;
+    }
+    return true;
+}
+
 int playerIndexOf(char color)
 {
     switch (color)
@@ -231,8 +290,22 @@ double cellDistance(int r1, int c1, int r2, int c2)
     return std::sqrt(dr * dr + dc * dc);
 }
 
-bool isLegalMove(const Board & /*board*/, const PieceMove & /*move*/, char /*piece*/)
+bool isLegalMove(const Board &board, const PieceMove &move, char piece)
 {
+    auto it = config::moveShapes.find(piece);
+    if (it == config::moveShapes.end())
+        return true; // no rule registered yet (e.g. pawn) -> unrestricted for now
+
+    const config::MoveRule &rule = it->second;
+
+    int dRow = move.toRow - move.fromRow;
+    int dCol = move.toCol - move.fromCol;
+    if (!rule.shape(dRow, dCol))
+        return false;
+
+    if (rule.slides && !isPathClear(board, move.fromRow, move.fromCol, move.toRow, move.toCol))
+        return false;
+
     return true;
 }
 
@@ -265,7 +338,7 @@ void resolveMoves(GameState &st)
             target = m.piece;
         }
         else
-        { // a friendly is sitting there
+        {
             std::string &origin = st.board.grid[m.fromRow][m.fromCol];
             if (isEmpty(origin))
                 origin = m.piece;
