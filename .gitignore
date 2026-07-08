@@ -1,0 +1,49 @@
+# ===== Build directories =====
+build/
+build*/
+out/
+cmake-build-*/
+
+# ===== CMake generated files =====
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# ===== Visual Studio generated files =====
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ===== Compiled binaries / objects =====
+*.obj
+*.o
+*.exe
+*.out
+*.ilk
+*.pdb
+*.exp
+*.lib
+*.dll
+*.tlog
+*.idb
+
+# ===== Debug/Release folders (if not inside build/) =====
+Debug/
+Release/
+x64/
+x86/
+
+# ===== Editor / OS junk =====
+.vscode/
+.DS_Store
+Thumbs.db
