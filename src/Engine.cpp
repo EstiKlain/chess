@@ -8,6 +8,16 @@
 #include "Movement.hpp"
 #include "config.hpp"
 
+bool isPieceInFlight(const GameState &st, int row, int col)
+{
+    for (const auto &m : st.activeMoves)
+    {
+        if (m.fromRow == row && m.fromCol == col)
+            return true;
+    }
+    return false;
+}
+
 void resolveMoves(GameState &st)
 {
     std::vector<size_t> due;
@@ -60,6 +70,12 @@ void sendMove(GameState &st, int player, int toRow, int toCol)
     m.startMs = st.elapsedMs;
     m.piece = selected;
 
+    if (isPieceInFlight(st, m.fromRow, m.fromCol))
+    {
+        sel = Selection{};
+        return;
+    }
+
     char piece = pieceOf(selected);
     double speed = config::statsFor(piece).speedCellsPerSec;
     double dist = cellDistance(m.fromRow, m.fromCol, toRow, toCol);
@@ -89,8 +105,7 @@ void handleClick(GameState &st, int player, int x, int y)
         return;
 
     const std::string &token = st.board.grid[row][col];
-    bool ownPiece = !isEmpty(token) && playerIndexOf(colorOf(token)) == player;
-
+    bool ownPiece = !isEmpty(token) && playerIndexOf(colorOf(token)) == player && !isPieceInFlight(st, row, col);
     if (st.selections[player].active)
     {
         if (ownPiece)
