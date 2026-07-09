@@ -22,6 +22,6 @@ struct PieceMove {
 struct GameState {
     Board                  board;
     long                   elapsedMs = 0;
-    std::vector<Selection> selections;
+    Selection selection;
     std::vector<PieceMove> activeMoves;
 };

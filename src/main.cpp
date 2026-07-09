@@ -14,7 +14,6 @@ int main() {
 
     GameState state;
     state.board = parseBoard(sections.boardLines);
-    state.selections.assign(config::NUM_PLAYERS, Selection{});
 
     try {
         validateBoard(state.board);

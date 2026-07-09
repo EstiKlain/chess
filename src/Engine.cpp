@@ -8,16 +8,6 @@
 #include "Movement.hpp"
 #include "config.hpp"
 
-bool isPieceInFlight(const GameState &st, int row, int col)
-{
-    for (const auto &m : st.activeMoves)
-    {
-        if (m.fromRow == row && m.fromCol == col)
-            return true;
-    }
-    return false;
-}
-
 void resolveMoves(GameState &st)
 {
     std::vector<size_t> due;
@@ -57,10 +47,33 @@ void resolveMoves(GameState &st)
     st.activeMoves = stillMoving;
 }
 
-void sendMove(GameState &st, int player, int toRow, int toCol)
+void sendMove(GameState &st, int toRow, int toCol)
 {
-    Selection &sel = st.selections[player];
+    if (!st.selection.active)
+    {
+        return;
+    }
+
+    Selection &sel = st.selection;
+    if (sel.row < 0 || sel.col < 0 || sel.row >= st.board.rows() || sel.col >= st.board.cols())
+    {
+        sel = Selection{};
+        return;
+    }
+
+    if (toRow < 0 || toCol < 0 || toRow >= st.board.rows() || toCol >= st.board.cols())
+    {
+        sel = Selection{};
+        return;
+    }
+
     const std::string selected = st.board.grid[sel.row][sel.col];
+
+    if (!st.activeMoves.empty()) // המסילה תפוסה - אין תזוזה חדשה
+    {
+        sel = Selection{};
+        return;
+    }
 
     PieceMove m;
     m.fromRow = sel.row;
@@ -69,12 +82,6 @@ void sendMove(GameState &st, int player, int toRow, int toCol)
     m.toCol = toCol;
     m.startMs = st.elapsedMs;
     m.piece = selected;
-
-    if (isPieceInFlight(st, m.fromRow, m.fromCol))
-    {
-        sel = Selection{};
-        return;
-    }
 
     char piece = pieceOf(selected);
     double speed = config::statsFor(piece).speedCellsPerSec;
@@ -89,11 +96,8 @@ void sendMove(GameState &st, int player, int toRow, int toCol)
     sel = Selection{};
 }
 
-void handleClick(GameState &st, int player, int x, int y)
+void handleClick(GameState &st, int x, int y)
 {
-    if (player < 0 || player >= (int)st.selections.size())
-        return;
-
     if (x < 0 || y < 0)
         return;
 
@@ -105,30 +109,39 @@ void handleClick(GameState &st, int player, int x, int y)
         return;
 
     const std::string &token = st.board.grid[row][col];
-    bool ownPiece = !isEmpty(token) && playerIndexOf(colorOf(token)) == player && !isPieceInFlight(st, row, col);
-    if (st.selections[player].active)
+
+    if (st.selection.active)
     {
-        if (ownPiece)
-        {
-            st.selections[player] = {true, row, col, st.elapsedMs}; // reselect
-        }
+        const std::string &selectedToken = st.board.grid[st.selection.row][st.selection.col];
+        bool sameColor = !isEmpty(token) && colorOf(token) == colorOf(selectedToken);
+
+        if (sameColor)
+            st.selection = {true, row, col, st.elapsedMs}; // reselect
         else
-        {
-            sendMove(st, player, row, col); // complete: move or capture
-        }
+            sendMove(st, row, col); // תזוזה או תפיסה
+
         return;
     }
 
-    if (ownPiece)
-    {
-        st.selections[player] = {true, row, col, st.elapsedMs}; // open a fresh selection
-    }
+    if (!isEmpty(token))
+        st.selection = {true, row, col, st.elapsedMs};
 }
-
 void handleWait(GameState &st, long ms)
 {
     st.elapsedMs += ms;
     resolveMoves(st);
+}
+
+bool isPieceInFlight(const GameState &st, int row, int col)
+{
+    for (const PieceMove &move : st.activeMoves)
+    {
+        if (move.fromRow == row && move.fromCol == col)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 void runCommands(const std::vector<std::string> &commands, GameState &st)
@@ -141,9 +154,9 @@ void runCommands(const std::vector<std::string> &commands, GameState &st)
 
         if (verb == "click")
         {
-            int player, x, y;
-            ss >> player >> x >> y;
-            handleClick(st, player, x, y);
+            int x, y;
+            ss >> x >> y;
+            handleClick(st, x, y);
         }
         else if (verb == "wait")
         {
