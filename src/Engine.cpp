@@ -7,46 +7,8 @@
 #include "Board.hpp"
 #include "Controller.hpp"
 #include "Movement.hpp"
+#include "RealTimeArbiter.hpp"
 #include "config.hpp"
-
-void resolveMoves(GameState &st)
-{
-    std::vector<size_t> due;
-    std::vector<PieceMove> stillMoving;
-    for (size_t i = 0; i < st.activeMoves.size(); ++i)
-    {
-        const PieceMove &m = st.activeMoves[i];
-        if (st.elapsedMs >= m.startMs + m.durationMs)
-            due.push_back(i);
-        else
-            stillMoving.push_back(m);
-    }
-
-    std::sort(due.begin(), due.end(), [&](size_t a, size_t b)
-              {
-        long ta = st.activeMoves[a].startMs + st.activeMoves[a].durationMs;
-        long tb = st.activeMoves[b].startMs + st.activeMoves[b].durationMs;
-        if (ta != tb) return ta < tb;
-        return a < b; });
-
-    for (size_t idx : due)
-    {
-        const PieceMove &m = st.activeMoves[idx];
-        std::string &target = st.board.grid[m.toRow][m.toCol];
-        if (isEmpty(target) || colorOf(target) != m.piece[0])
-        {
-            target = m.piece;
-        }
-        else
-        {
-            std::string &origin = st.board.grid[m.fromRow][m.fromCol];
-            if (isEmpty(origin))
-                origin = m.piece;
-        }
-    }
-
-    st.activeMoves = stillMoving;
-}
 
 void sendMove(GameState &st, int toRow, int toCol)
 {
@@ -70,7 +32,7 @@ void sendMove(GameState &st, int toRow, int toCol)
 
     const std::string selected = st.board.grid[sel.row][sel.col];
 
-    if (!st.activeMoves.empty()) // המסילה תפוסה - אין תזוזה חדשה
+    if (hasActiveMotion(st)) // המסילה תפוסה - אין תזוזה חדשה
     {
         sel = Selection{};
         return;
@@ -107,18 +69,6 @@ void handleWait(GameState &st, long ms)
 {
     st.elapsedMs += ms;
     resolveMoves(st);
-}
-
-bool isPieceInFlight(const GameState &st, int row, int col)
-{
-    for (const PieceMove &move : st.activeMoves)
-    {
-        if (move.fromRow == row && move.fromCol == col)
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 void runCommands(const std::vector<std::string> &commands, GameState &st)

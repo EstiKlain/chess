@@ -160,20 +160,6 @@ TEST_CASE("move_resolves_at_exact_boundary_in_common_route")
     CHECK(st.board.grid[0][3] == "wR");
 }
 
-TEST_CASE("is_piece_in_flight_matches_origin_square_state_during_move")
-{
-    // Why this matters: the origin square should be treated as occupied by an in-flight piece until the move lands, matching the current engine flow.
-    // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-    clickCell(st, 0, 3);
-
-    // Act / Assert
-    CHECK(isPieceInFlight(st, 0, 0));
-    CHECK(isEmpty(st.board.grid[0][0]));
-    CHECK_FALSE(isPieceInFlight(st, 0, 3));
-}
-
 TEST_CASE("send_move_rejects_when_selection_is_inactive")
 {
     // Additional edge case: a disabled selection should never start a move, even if the board coordinates look legal.
