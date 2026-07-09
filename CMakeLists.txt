@@ -9,6 +9,8 @@ add_executable(chess_game
     src/Board.cpp
     src/Movement.cpp
     src/Engine.cpp
+    src/Controller.cpp
+    src/BoardMapper.cpp
 )
 target_include_directories(chess_game PRIVATE src)
 
@@ -23,9 +25,13 @@ if(BUILD_TESTS)
         tests/Board.tests.cpp
         tests/Movement.tests.cpp
         tests/Engine.tests.cpp
+        tests/Controller.tests.cpp
+        tests/BoardMapper.tests.cpp
         src/Board.cpp
         src/Movement.cpp
         src/Engine.cpp
+        src/Controller.cpp
+        src/BoardMapper.cpp
     )
     target_include_directories(chess_tests PRIVATE src third_party)
 

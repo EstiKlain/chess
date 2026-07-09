@@ -5,6 +5,7 @@
 #include <sstream>
 
 #include "Board.hpp"
+#include "Controller.hpp"
 #include "Movement.hpp"
 #include "config.hpp"
 
@@ -98,33 +99,9 @@ void sendMove(GameState &st, int toRow, int toCol)
 
 void handleClick(GameState &st, int x, int y)
 {
-    if (x < 0 || y < 0)
-        return;
-
-    int col = x / config::CELL_SIZE;
-    int row = y / config::CELL_SIZE;
-
-    if (row < 0 || row >= st.board.rows() ||
-        col < 0 || col >= st.board.cols())
-        return;
-
-    const std::string &token = st.board.grid[row][col];
-
-    if (st.selection.active)
-    {
-        const std::string &selectedToken = st.board.grid[st.selection.row][st.selection.col];
-        bool sameColor = !isEmpty(token) && colorOf(token) == colorOf(selectedToken);
-
-        if (sameColor)
-            st.selection = {true, row, col, st.elapsedMs}; // reselect
-        else
-            sendMove(st, row, col); // תזוזה או תפיסה
-
-        return;
-    }
-
-    if (!isEmpty(token))
-        st.selection = {true, row, col, st.elapsedMs};
+    Controller controller(st, [&](MoveRequest request)
+                          { sendMove(st, request.to.row, request.to.col); });
+    controller.handleClick(x, y);
 }
 void handleWait(GameState &st, long ms)
 {

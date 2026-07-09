@@ -231,23 +231,6 @@ TEST_CASE("illegal_move_attempt_resets_selection_and_keeps_queue_empty")
     CHECK(st.board.grid[0][0] == "wR");
 }
 
-TEST_CASE("reselecting_same_color_piece_updates_selection_without_move")
-{
-    // Why this matters: same-color reselection should be a UI selection change, not a move attempt, and it must not create a global route entry.
-    // Arrange
-    GameState st = makeState({{"wR", ".", "wP", "."}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-
-    // Act
-    clickCell(st, 0, 2);
-
-    // Assert
-    CHECK(st.selection.active);
-    CHECK(st.selection.row == 0);
-    CHECK(st.selection.col == 2);
-    CHECK(st.activeMoves.empty());
-}
-
 TEST_CASE("clicking_opposite_color_piece_during_selection_attempts_capture")
 {
     // Why this matters: the engine must still allow a legal capture attempt when a different-colored piece is clicked while a selection is active.
@@ -263,25 +246,6 @@ TEST_CASE("clicking_opposite_color_piece_during_selection_attempts_capture")
     CHECK(st.activeMoves[0].toRow == 0);
     CHECK(st.activeMoves[0].toCol == 2);
     CHECK(st.board.grid[0][0] == ".");
-}
-
-TEST_CASE("invalid_clicks_do_not_mutate_state")
-{
-    // Why this matters: malformed input must be a no-op so the engine never leaves behind a phantom selection or move state.
-    // Arrange
-    GameState st = makeState({{"wR", ".", "."}});
-
-    // Act
-    handleClick(st, -1, 50);
-    handleClick(st, 1000, 50);
-    handleClick(st, 50, 1000);
-    clickCell(st, 0, 2);
-
-    // Assert
-    CHECK_FALSE(st.selection.active);
-    CHECK(st.activeMoves.empty());
-    CHECK(st.board.grid[0][0] == "wR");
-    CHECK(st.board.grid[0][2] == ".");
 }
 
 TEST_CASE("handle_wait_accumulates_elapsed_time_to_resolve_late_move")
