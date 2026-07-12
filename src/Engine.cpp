@@ -55,10 +55,10 @@ void sendMove(GameState &st, const MoveRequest &request)
         st.board.grid[m.fromRow][m.fromCol] = ".";
         st.activeMoves.push_back(m);
     }
-    else
-    {
-        std::cout << "Move rejected: " << legality.reason << std::endl;
-    }
+    // else
+    // {
+    //     std::cout << "Move rejected: " << legality.reason << std::endl;
+    // }
     sel = Selection{};
 }
 

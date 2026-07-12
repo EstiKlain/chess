@@ -146,6 +146,6 @@ TEST_CASE("isLegalMove reasons") {
         Board b = parseBoard({"wR . . .", ". . . ."});
         auto res = isLegalMove(b, makeMove(0, 0, 0, 3, "wR"), 'R');
         CHECK(res.isValid);
-        CHECK(res.reason == "");
+        CHECK(res.reason == "legal");
     }
 }

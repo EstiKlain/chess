@@ -19,7 +19,7 @@ double cellDistance(int r1, int c1, int r2, int c2) {
 
 MoveLegality isLegalMove(const Board& board, const PieceMove& move, char piece) {
     auto it = config::moveShapes.find(piece);
-    if (it == config::moveShapes.end()) return {true, ""};  
+    if (it == config::moveShapes.end()) return {true, "legal"};  
 
     const config::MoveRule& rule = it->second;
     char color = move.piece[0];
@@ -37,5 +37,5 @@ MoveLegality isLegalMove(const Board& board, const PieceMove& move, char piece) 
     if (rule.slides && !isPathClear(board, move.fromRow, move.fromCol, move.toRow, move.toCol))
         return {false, "blocked_path"};
 
-    return {true, ""};
+    return {true, "legal"};
 }
