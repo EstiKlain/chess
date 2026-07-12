@@ -17,7 +17,7 @@ double cellDistance(int r1, int c1, int r2, int c2) {
     return std::sqrt(dr * dr + dc * dc);
 }
 
-MoveLegality isLegalMove(const Board& board, const PieceMove& move, char piece) {
+MoveLegality checkPieceShape(const Board& board, const PieceMove& move, char piece) {
     auto it = config::moveShapes.find(piece);
     if (it == config::moveShapes.end()) return {true, "legal"};  
 
@@ -36,6 +36,9 @@ MoveLegality isLegalMove(const Board& board, const PieceMove& move, char piece) 
 
     if (rule.slides && !isPathClear(board, move.fromRow, move.fromCol, move.toRow, move.toCol))
         return {false, "blocked_path"};
+
+    if (rule.contextGate && !rule.contextGate(board, move.fromRow, move.fromCol, move.toRow, move.toCol, color))
+        return {false, "pawn_double_step_blocked"};
 
     return {true, "legal"};
 }

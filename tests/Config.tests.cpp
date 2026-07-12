@@ -56,10 +56,25 @@ TEST_CASE("pawnForwardDir depends on color") {
 
 TEST_CASE("shape helpers classify pawn moves and captures separately") {
     CHECK(config::pawnShape(-1, 0, 'w'));
+    CHECK(config::pawnShape(-2, 0, 'w'));
     CHECK_FALSE(config::pawnShape(-1, 1, 'w'));
+    CHECK_FALSE(config::pawnShape(-2, 2, 'w'));
+    CHECK(config::pawnShape(1, 0, 'b'));
+    CHECK(config::pawnShape(2, 0, 'b'));
+    CHECK_FALSE(config::pawnShape(2, 2, 'b'));
     CHECK(config::pawnCaptureShape(-1, 1, 'w'));
     CHECK(config::pawnCaptureShape(-1, -1, 'w'));
     CHECK_FALSE(config::pawnCaptureShape(-1, 0, 'w'));
+}
+
+TEST_CASE("pawnStartRow returns canonical start row for each color on 8 rows") {
+    CHECK(config::pawnStartRow('w', 8) == 7);
+    CHECK(config::pawnStartRow('b', 8) == 0);
+}
+
+TEST_CASE("pawnPromotionRow returns canonical far row for each color on 8 rows") {
+    CHECK(config::pawnPromotionRow('w', 8) == 0);
+    CHECK(config::pawnPromotionRow('b', 8) == 7);
 }
 
 TEST_CASE("moveShapes registers a rule for every standard piece") {

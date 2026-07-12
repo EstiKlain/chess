@@ -7,5 +7,5 @@ MoveLegality isMoveLegal(const Board &board, const PieceMove &move, char piece)
     {
         return {false, "outside_board"};
     }
-    return isLegalMove(board, move, piece);
+    return checkPieceShape(board, move, piece);
 }

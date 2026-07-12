@@ -4,7 +4,7 @@
 
 #include "Board.hpp"
 #include "Movement.hpp"
-
+#include "config.hpp"
 std::vector<std::string> resolveMoves(GameState &st)
 {
     std::vector<std::string> captured;
@@ -30,27 +30,33 @@ std::vector<std::string> resolveMoves(GameState &st)
     {
         const PieceMove &m = st.activeMoves[idx];
         std::string &target = st.board.grid[m.toRow][m.toCol];
+        std::string &origin = st.board.grid[m.fromRow][m.fromCol];
+
         if (!isEmpty(target) && colorOf(target) != m.piece[0])
         {
             captured.push_back(target);
             target = m.piece;
+            if (pieceOf(m.piece) == 'P' && m.toRow == config::pawnPromotionRow(colorOf(m.piece), st.board.rows()))
+                target[1] = 'Q';
+            origin = ".";
         }
         else if (isEmpty(target))
         {
             target = m.piece;
+            if (pieceOf(m.piece) == 'P' && m.toRow == config::pawnPromotionRow(colorOf(m.piece), st.board.rows()))
+                target[1] = 'Q';
+            origin = ".";
         }
-        else
-        {
-            std::string &origin = st.board.grid[m.fromRow][m.fromCol];
-            if (isEmpty(origin))
-                origin = m.piece;
-        }
+        // else: friendly piece blocks destination -> move fails, piece stays at origin
+        // (origin was never cleared, so nothing to do here)
     }
 
     st.activeMoves = stillMoving;
     return captured;
 }
 
+
+//will be used once multiple concurrent moves are supported
 bool isPieceInFlight(const GameState &st, int row, int col)
 {
     for (const PieceMove &move : st.activeMoves)

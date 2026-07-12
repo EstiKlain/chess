@@ -4,6 +4,8 @@
 #include <functional>
 #include <map>
 
+#include "Board.hpp"
+
 namespace config {
 
     constexpr int CELL_SIZE = 100;
@@ -12,7 +14,7 @@ namespace config {
 
     struct PieceStats {
         double speedCellsPerSec;
-        long   restMs;
+        long   restMs; //cooldown between consecutive moves per piece
     };
 
     inline PieceStats statsFor(char piece) {
@@ -48,8 +50,15 @@ namespace config {
     inline int pawnForwardDir(char color) {
         return (color == 'w') ? -1 : 1;
     }
+    inline int pawnStartRow(char color, int totalRows) {
+        return (color == 'w') ? totalRows - 1 : 0;
+    }
+    inline int pawnPromotionRow(char color, int totalRows) {
+        return (color == 'w') ? 0 : totalRows - 1;
+    }
     inline bool pawnShape(int dRow, int dCol, char color) {
-        return dCol == 0 && dRow == pawnForwardDir(color);
+        int fwd = pawnForwardDir(color);
+        return dCol == 0 && (dRow == fwd || dRow == 2 * fwd);
     }
     inline bool pawnCaptureShape(int dRow, int dCol, char color) {
         return std::abs(dCol) == 1 && dRow == pawnForwardDir(color);
@@ -59,7 +68,19 @@ namespace config {
         MoveShapeFn shape;
         bool        slides;
         MoveShapeFn captureShape = nullptr;
+        std::function<bool(const Board&, int fromRow, int fromCol, int toRow, int toCol, char color)> contextGate = nullptr;
     };
+
+    inline bool pawnContextGate(const Board& board, int fromRow, int fromCol, int toRow, int toCol, char color) {
+        int dRow = toRow - fromRow;
+        int dCol = toCol - fromCol;
+        int doubleStep = 2 * pawnForwardDir(color);
+        if (dCol != 0 || dRow != doubleStep)
+            return true;
+        if (fromRow != pawnStartRow(color, board.rows()))
+            return false;
+        return isPathClear(board, fromRow, fromCol, toRow, toCol);
+    }
 
     inline std::map<char, MoveRule> moveShapes = {
         {'K', {kingShape,   false}},
@@ -67,6 +88,6 @@ namespace config {
         {'R', {rookShape,   true }},
         {'B', {bishopShape, true }},
         {'N', {knightShape, false}},
-        {'P', {pawnShape,   false, pawnCaptureShape}},
+        {'P', {pawnShape,   false, pawnCaptureShape, pawnContextGate}},
     };
 }

@@ -52,7 +52,6 @@ void sendMove(GameState &st, const MoveRequest &request)
     MoveLegality legality = isMoveLegal(st.board, m, piece);
     if (legality.isValid)
     {
-        st.board.grid[m.fromRow][m.fromCol] = ".";
         st.activeMoves.push_back(m);
     }
     // else

@@ -82,3 +82,109 @@ TEST_CASE("resolveMoves lands the piece at destination when duration expires")
     CHECK(st.activeMoves.empty());      // תור התנועות התרוקן
     CHECK(st.board.grid[0][2] == "wR"); // הכלי נחת בהצלחה ביעד
 }
+
+TEST_CASE("white pawn promoted to queen on arrival at row 0")
+{
+    GameState st = makeState({{"."}, {"wP"}});
+    PieceMove m;
+    m.fromRow = 1;
+    m.fromCol = 0;
+    m.toRow = 0;
+    m.toCol = 0;
+    m.startMs = 0;
+    m.durationMs = 500;
+    m.piece = "wP";
+    st.activeMoves.push_back(m);
+    st.elapsedMs = 500;
+
+    resolveMoves(st);
+
+    CHECK(st.board.grid[0][0] == "wQ");
+}
+
+TEST_CASE("black pawn promoted to queen on arrival at last row")
+{
+    GameState st = makeState({{"."}, {"."}, {"."}, {"."}, {"."}, {"."}, {"."}, {"."}});
+    PieceMove m;
+    m.fromRow = 6;
+    m.fromCol = 0;
+    m.toRow = 7;
+    m.toCol = 0;
+    m.startMs = 0;
+    m.durationMs = 500;
+    m.piece = "bP";
+    st.activeMoves.push_back(m);
+    st.elapsedMs = 500;
+
+    resolveMoves(st);
+
+    CHECK(st.board.grid[7][0] == "bQ");
+}
+
+TEST_CASE("pawn arriving at non-promotion row remains a pawn")
+{
+    GameState st = makeState({
+        {".", ".", "."},
+        {".", ".", "."},
+        {".", ".", "."},
+        {".", ".", "."},
+        {".", ".", "."},
+        {".", ".", "."},
+        {"wP", ".", "."},
+        {".", ".", "."}
+    });
+    PieceMove m;
+    m.fromRow = 6;
+    m.fromCol = 0;
+    m.toRow = 5;
+    m.toCol = 0;
+    m.startMs = 0;
+    m.durationMs = 500;
+    m.piece = "wP";
+    st.activeMoves.push_back(m);
+    st.elapsedMs = 500;
+
+    resolveMoves(st);
+
+    CHECK(st.board.grid[5][0] == "wP");
+}
+
+TEST_CASE("non-pawn piece is never modified by promotion check")
+{
+    GameState st = makeState({{"."}, {"wR"}});
+    PieceMove m;
+    m.fromRow = 1;
+    m.fromCol = 0;
+    m.toRow = 0;
+    m.toCol = 0;
+    m.startMs = 0;
+    m.durationMs = 500;
+    m.piece = "wR";
+    st.activeMoves.push_back(m);
+    st.elapsedMs = 500;
+
+    resolveMoves(st);
+
+    CHECK(st.board.grid[0][0] == "wR");
+}
+
+TEST_CASE("pawn promotion applies when arrival is a capture")
+{
+    GameState st = makeState({{"bK"}, {"wP"}});
+    PieceMove m;
+    m.fromRow = 1;
+    m.fromCol = 0;
+    m.toRow = 0;
+    m.toCol = 0;
+    m.startMs = 0;
+    m.durationMs = 500;
+    m.piece = "wP";
+    st.activeMoves.push_back(m);
+    st.elapsedMs = 500;
+
+    std::vector<std::string> captured = resolveMoves(st);
+
+    CHECK(captured.size() == 1);
+    CHECK(captured[0] == "bK");
+    CHECK(st.board.grid[0][0] == "wQ");
+}

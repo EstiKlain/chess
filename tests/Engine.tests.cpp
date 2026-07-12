@@ -133,7 +133,7 @@ TEST_CASE("piece_is_ready_after_arrival_without_cooldown")
     clickCell(st, 0, 0);
 
     // Assert
-    CHECK(st.board.grid[0][3] == ".");
+    CHECK(st.board.grid[0][3] == "wR");
     CHECK(st.board.grid[0][0] == ".");
     CHECK(st.selection.active == false);
 }
@@ -229,7 +229,7 @@ TEST_CASE("clicking_opposite_color_piece_during_selection_attempts_capture")
     REQUIRE(st.activeMoves.size() == 1);
     CHECK(st.activeMoves[0].toRow == 0);
     CHECK(st.activeMoves[0].toCol == 2);
-    CHECK(st.board.grid[0][0] == ".");
+    CHECK(st.board.grid[0][0] == "wR");
 }
 
 TEST_CASE("handle_wait_accumulates_elapsed_time_to_resolve_late_move")
@@ -295,5 +295,59 @@ TEST_CASE("run_commands_respect_global_route_integration")
     runCommands(commands, st);
 
     // Assert
-    CHECK(formatBoard(st.board) == ". . . .\nbB . . .\n");
+    CHECK(formatBoard(st.board) == "wR . . .\nbB . . .\n");
+}
+
+TEST_CASE("print_board_mid_flight_still_shows_piece_at_origin")
+{
+    GameState st = makeState({{"wR", ".", ".", "."}});
+    st.selection = {true, 0, 0, st.elapsedMs};
+    clickCell(st, 0, 3);      // rook: distance 3, speed 3 -> duration 1000ms
+
+    handleWait(st, 500);      // still mid-flight
+
+    CHECK(st.board.grid[0][0] == "wR");
+    CHECK(st.board.grid[0][3] == ".");
+}
+
+TEST_CASE("pawn_double_step_reaches_destination_after_wait")
+{
+    GameState st = makeState({
+        {".", ".", ".", "."},
+        {".", ".", ".", "."},
+        {".", ".", ".", "."},
+        {".", ".", ".", "."},
+        {".", ".", ".", "."},
+        {".", ".", ".", "."},
+        {".", ".", ".", "."},
+        {"wP", ".", ".", "."}
+    });
+    st.selection = {true, 7, 0, st.elapsedMs};
+
+    clickCell(st, 5, 0);
+    handleWait(st, 1000);
+
+    CHECK(st.board.grid[5][0] == "wP");
+    CHECK(st.board.grid[7][0] == ".");
+}
+
+TEST_CASE("pawn_promotion_to_queen_after_reaching_far_row")
+{
+    GameState st = makeState({
+        {".", ".", ".", "."},
+        {"wP", ".", ".", "."},
+        {".", ".", ".", "."},
+        {".", ".", ".", "."},
+        {".", ".", ".", "."},
+        {".", ".", ".", "."},
+        {".", ".", ".", "."},
+        {".", ".", ".", "."}
+    });
+    st.selection = {true, 1, 0, st.elapsedMs};
+
+    clickCell(st, 0, 0);
+    handleWait(st, 500);
+
+    CHECK(st.board.grid[0][0] == "wQ");
+    CHECK(st.board.grid[1][0] == ".");
 }
