@@ -5,8 +5,9 @@
 #include "Board.hpp"
 #include "Movement.hpp"
 
-void resolveMoves(GameState &st)
+std::vector<std::string> resolveMoves(GameState &st)
 {
+    std::vector<std::string> captured;
     std::vector<size_t> due;
     std::vector<PieceMove> stillMoving;
     for (size_t i = 0; i < st.activeMoves.size(); ++i)
@@ -29,7 +30,12 @@ void resolveMoves(GameState &st)
     {
         const PieceMove &m = st.activeMoves[idx];
         std::string &target = st.board.grid[m.toRow][m.toCol];
-        if (isEmpty(target) || colorOf(target) != m.piece[0])
+        if (!isEmpty(target) && colorOf(target) != m.piece[0])
+        {
+            captured.push_back(target);
+            target = m.piece;
+        }
+        else if (isEmpty(target))
         {
             target = m.piece;
         }
@@ -42,6 +48,7 @@ void resolveMoves(GameState &st)
     }
 
     st.activeMoves = stillMoving;
+    return captured;
 }
 
 bool isPieceInFlight(const GameState &st, int row, int col)

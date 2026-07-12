@@ -12,6 +12,8 @@ add_executable(chess_game
     src/Controller.cpp
     src/BoardMapper.cpp
     src/RealTimeArbiter.cpp
+    src/RuleEngine.cpp
+    src/GameOverRule.cpp
 )
 target_include_directories(chess_game PRIVATE src)
 
@@ -29,12 +31,16 @@ if(BUILD_TESTS)
         tests/Controller.tests.cpp
         tests/BoardMapper.tests.cpp
         tests/RealTimeArbiter.tests.cpp
+        tests/RuleEngine.tests.cpp
+        tests/GameOverRule.tests.cpp
         src/Board.cpp
         src/Movement.cpp
         src/Engine.cpp
         src/Controller.cpp
         src/BoardMapper.cpp
         src/RealTimeArbiter.cpp
+        src/RuleEngine.cpp
+        src/GameOverRule.cpp
     )
     target_include_directories(chess_tests PRIVATE src third_party)
 

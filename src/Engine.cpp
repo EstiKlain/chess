@@ -7,15 +7,19 @@
 #include "Board.hpp"
 #include "Controller.hpp"
 #include "Movement.hpp"
+#include "GameOverRule.hpp"
 #include "RealTimeArbiter.hpp"
+#include "RuleEngine.hpp"
 #include "config.hpp"
 
-void sendMove(GameState &st, int toRow, int toCol)
+void sendMove(GameState &st, const MoveRequest &request)
 {
-    if (!st.selection.active)
-    {
-        return;
-    }
+    if (st.gameOver || !st.selection.active) return;
+
+    int fromRow = request.from.row;
+    int fromCol = request.from.col;
+    int toRow = request.to.row;
+    int toCol = request.to.col;
 
     Selection &sel = st.selection;
     if (sel.row < 0 || sel.col < 0 || sel.row >= st.board.rows() || sel.col >= st.board.cols())
@@ -32,7 +36,7 @@ void sendMove(GameState &st, int toRow, int toCol)
 
     const std::string selected = st.board.grid[sel.row][sel.col];
 
-    if (hasActiveMotion(st)) // המסילה תפוסה - אין תזוזה חדשה
+    if (hasActiveMotion(st))
     {
         sel = Selection{};
         return;
@@ -51,7 +55,7 @@ void sendMove(GameState &st, int toRow, int toCol)
     double dist = cellDistance(m.fromRow, m.fromCol, toRow, toCol);
     m.durationMs = (speed > 0.0) ? (long)(dist / speed * 1000.0) : 0;
 
-    if (isLegalMove(st.board, m, piece))
+    if (isMoveLegal(st.board, m, piece))
     {
         st.board.grid[m.fromRow][m.fromCol] = ".";
         st.activeMoves.push_back(m);
@@ -62,13 +66,22 @@ void sendMove(GameState &st, int toRow, int toCol)
 void handleClick(GameState &st, int x, int y)
 {
     Controller controller(st, [&](MoveRequest request)
-                          { sendMove(st, request.to.row, request.to.col); });
+                          { sendMove(st, request); });
     controller.handleClick(x, y);
 }
 void handleWait(GameState &st, long ms)
 {
+    if (st.gameOver)
+    {
+        return;
+    }
+
     st.elapsedMs += ms;
-    resolveMoves(st);
+    std::vector<std::string> captured = resolveMoves(st);
+    if (isGameOver(captured))
+    {
+        st.gameOver = true;
+    }
 }
 
 void runCommands(const std::vector<std::string> &commands, GameState &st)

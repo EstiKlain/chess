@@ -5,6 +5,7 @@
 #include "GameState.hpp"
 #include "Movement.hpp"
 #include "config.hpp"
+#include "MoveRequest.hpp"
 
 namespace
 {
@@ -168,8 +169,7 @@ TEST_CASE("send_move_rejects_when_selection_is_inactive")
     st.selection = {};
 
     // Act
-    sendMove(st, 0, 3);
-
+    sendMove(st, MoveRequest{Position{0, 0}, Position{0, 1}});
     // Assert
     CHECK(st.activeMoves.empty());
     CHECK_FALSE(st.selection.active);
@@ -193,8 +193,7 @@ TEST_CASE("send_move_rejects_when_destination_is_already_target_of_in_flight_mov
     st.activeMoves.push_back(inFlight);
 
     // Act
-    sendMove(st, 0, 2);
-
+    sendMove(st, MoveRequest{Position{0, 0}, Position{0, 2}});
     // Assert
     REQUIRE(st.activeMoves.size() == 1);
     CHECK(st.selection.active == false);
@@ -209,8 +208,7 @@ TEST_CASE("illegal_move_attempt_resets_selection_and_keeps_queue_empty")
     st.selection = {true, 0, 0, st.elapsedMs};
 
     // Act
-    sendMove(st, 0, 1);
-
+    sendMove(st, MoveRequest{Position{0, 0}, Position{1, 1}});
     // Assert
     CHECK(st.activeMoves.empty());
     CHECK_FALSE(st.selection.active);
@@ -256,6 +254,28 @@ TEST_CASE("handle_wait_accumulates_elapsed_time_to_resolve_late_move")
     // Assert
     CHECK(st.activeMoves.empty());
     CHECK(st.board.grid[0][3] == "wR");
+}
+
+TEST_CASE("capturing_king_ends_game_and_blocks_further_moves")
+{
+    // Why this matters: once a king is captured, the game must freeze immediately and later move commands must be ignored.
+    // Arrange
+    GameState st = makeState({{"wR", ".", "bK"}});
+    st.selection = {true, 0, 0, st.elapsedMs};
+    clickCell(st, 0, 2);
+    handleWait(st, 1000);
+
+    // Assert
+    CHECK(st.gameOver);
+    CHECK(st.board.grid[0][2] == "wR");
+
+    // Act
+    st.selection = {true, 0, 0, st.elapsedMs};
+    sendMove(st, MoveRequest{Position{0, 0}, Position{0, 1}});
+
+    // Assert
+    CHECK(st.activeMoves.empty());
+    CHECK(st.board.grid[0][2] == "wR");
 }
 
 TEST_CASE("run_commands_respect_global_route_integration")

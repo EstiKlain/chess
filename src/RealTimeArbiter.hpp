@@ -3,7 +3,7 @@
 #include "Board.hpp"
 #include "GameState.hpp"
 
-void resolveMoves(GameState &st);
+std::vector<std::string> resolveMoves(GameState &st);
 
 bool isPieceInFlight(const GameState &st, int row, int col);
 
