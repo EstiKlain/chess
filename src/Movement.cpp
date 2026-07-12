@@ -17,25 +17,25 @@ double cellDistance(int r1, int c1, int r2, int c2) {
     return std::sqrt(dr * dr + dc * dc);
 }
 
-bool isLegalMove(const Board& board, const PieceMove& move, char piece) {
+MoveLegality isLegalMove(const Board& board, const PieceMove& move, char piece) {
     auto it = config::moveShapes.find(piece);
-    if (it == config::moveShapes.end()) return true;   // no rule registered yet -> unrestricted for now
+    if (it == config::moveShapes.end()) return {true, ""};  
 
     const config::MoveRule& rule = it->second;
     char color = move.piece[0];
 
     const std::string &destination = board.grid[move.toRow][move.toCol];
-    if (!isEmpty(destination) && colorOf(destination) == color) return false;
+    if (!isEmpty(destination) && colorOf(destination) == color) return {false, "friendly_destination"};
 
     bool isCapture = !isEmpty(destination);
     const config::MoveShapeFn& shape = (isCapture && rule.captureShape) ? rule.captureShape : rule.shape;
 
     int dRow = move.toRow - move.fromRow;
     int dCol = move.toCol - move.fromCol;
-    if (!shape(dRow, dCol, color)) return false;
+    if (!shape(dRow, dCol, color)) return {false, "illegal_piece_move"};
 
     if (rule.slides && !isPathClear(board, move.fromRow, move.fromCol, move.toRow, move.toCol))
-        return false;
+        return {false, "blocked_path"};
 
-    return true;
+    return {true, ""};
 }

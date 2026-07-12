@@ -29,19 +29,19 @@ TEST_CASE("cellDistance computes euclidean distance in cells") {
 
 TEST_CASE("isLegalMove: king moves one square in any direction") {
     Board b = parseBoard({"wK . .", ". . .", ". . ."});
-    CHECK(isLegalMove(b, makeMove(0, 0, 1, 1, "wK"), 'K'));
-    CHECK(isLegalMove(b, makeMove(0, 0, 0, 1, "wK"), 'K'));
-    CHECK_FALSE(isLegalMove(b, makeMove(0, 0, 2, 2, "wK"), 'K'));
-    CHECK_FALSE(isLegalMove(b, makeMove(0, 0, 0, 0, "wK"), 'K'));
+    CHECK(isLegalMove(b, makeMove(0, 0, 1, 1, "wK"), 'K').isValid);
+    CHECK(isLegalMove(b, makeMove(0, 0, 0, 1, "wK"), 'K').isValid);
+    CHECK_FALSE(isLegalMove(b, makeMove(0, 0, 2, 2, "wK"), 'K').isValid);
+    CHECK_FALSE(isLegalMove(b, makeMove(0, 0, 0, 0, "wK"), 'K').isValid);
 }
 
 TEST_CASE("isLegalMove: rook moves straight and needs a clear path") {
     Board clear = parseBoard({"wR . . .", ". . . .", ". . . .", ". . . ."});
-    CHECK(isLegalMove(clear, makeMove(0, 0, 0, 3, "wR"), 'R'));
-    CHECK_FALSE(isLegalMove(clear, makeMove(0, 0, 1, 1, "wR"), 'R'));
+    CHECK(isLegalMove(clear, makeMove(0, 0, 0, 3, "wR"), 'R').isValid);
+    CHECK_FALSE(isLegalMove(clear, makeMove(0, 0, 1, 1, "wR"), 'R').isValid);
 
     Board blocked = parseBoard({"wR wP . ."});
-    CHECK_FALSE(isLegalMove(blocked, makeMove(0, 0, 0, 3, "wR"), 'R'));
+    CHECK_FALSE(isLegalMove(blocked, makeMove(0, 0, 0, 3, "wR"), 'R').isValid);
 }
 
 TEST_CASE("isLegalMove: bishop moves diagonally and needs a clear path") {
@@ -51,8 +51,8 @@ TEST_CASE("isLegalMove: bishop moves diagonally and needs a clear path") {
         ". . . .",
         ". . . ."
     });
-    CHECK(isLegalMove(clear, makeMove(0, 0, 3, 3, "wB"), 'B'));
-    CHECK_FALSE(isLegalMove(clear, makeMove(0, 0, 3, 2, "wB"), 'B'));
+    CHECK(isLegalMove(clear, makeMove(0, 0, 3, 3, "wB"), 'B').isValid);
+    CHECK_FALSE(isLegalMove(clear, makeMove(0, 0, 3, 2, "wB"), 'B').isValid);
 
     Board blocked = parseBoard({
         "wB . . .",
@@ -60,7 +60,7 @@ TEST_CASE("isLegalMove: bishop moves diagonally and needs a clear path") {
         ". . . .",
         ". . . ."
     });
-    CHECK_FALSE(isLegalMove(blocked, makeMove(0, 0, 2, 2, "wB"), 'B'));
+    CHECK_FALSE(isLegalMove(blocked, makeMove(0, 0, 2, 2, "wB"), 'B').isValid);
 }
 
 TEST_CASE("isLegalMove: queen moves like rook or bishop but not like a knight") {
@@ -70,9 +70,9 @@ TEST_CASE("isLegalMove: queen moves like rook or bishop but not like a knight") 
         ". . . .",
         ". . . ."
     });
-    CHECK(isLegalMove(b, makeMove(0, 0, 0, 3, "wQ"), 'Q'));
-    CHECK(isLegalMove(b, makeMove(0, 0, 3, 3, "wQ"), 'Q'));
-    CHECK_FALSE(isLegalMove(b, makeMove(0, 0, 1, 2, "wQ"), 'Q'));
+    CHECK(isLegalMove(b, makeMove(0, 0, 0, 3, "wQ"), 'Q').isValid);
+    CHECK(isLegalMove(b, makeMove(0, 0, 3, 3, "wQ"), 'Q').isValid);
+    CHECK_FALSE(isLegalMove(b, makeMove(0, 0, 1, 2, "wQ"), 'Q').isValid);
 }
 
 TEST_CASE("isLegalMove: knight moves in an L shape and ignores blockers") {
@@ -82,8 +82,8 @@ TEST_CASE("isLegalMove: knight moves in an L shape and ignores blockers") {
         ". . . .",
         ". . . ."
     });
-    CHECK(isLegalMove(b, makeMove(0, 0, 2, 1, "wN"), 'N'));
-    CHECK_FALSE(isLegalMove(b, makeMove(0, 0, 1, 1, "wN"), 'N'));
+    CHECK(isLegalMove(b, makeMove(0, 0, 2, 1, "wN"), 'N').isValid);
+    CHECK_FALSE(isLegalMove(b, makeMove(0, 0, 1, 1, "wN"), 'N').isValid);
 }
 
 TEST_CASE("isLegalMove: pawn advances straight only onto an empty square") {
@@ -92,9 +92,9 @@ TEST_CASE("isLegalMove: pawn advances straight only onto an empty square") {
         "wP . bP",
         ". . ."
     });
-    CHECK(isLegalMove(b, makeMove(1, 0, 0, 0, "wP"), 'P'));
-    CHECK_FALSE(isLegalMove(b, makeMove(1, 0, 0, 1, "wP"), 'P'));
-    CHECK_FALSE(isLegalMove(b, makeMove(1, 2, 0, 2, "bP"), 'P'));
+    CHECK(isLegalMove(b, makeMove(1, 0, 0, 0, "wP"), 'P').isValid);
+    CHECK_FALSE(isLegalMove(b, makeMove(1, 0, 0, 1, "wP"), 'P').isValid);
+    CHECK_FALSE(isLegalMove(b, makeMove(1, 2, 0, 2, "bP"), 'P').isValid);
 }
 
 TEST_CASE("isLegalMove: pawn captures diagonally only, never straight") {
@@ -103,19 +103,49 @@ TEST_CASE("isLegalMove: pawn captures diagonally only, never straight") {
         ". wP .",
         ". . ."
     });
-    CHECK(isLegalMove(b, makeMove(1, 1, 0, 0, "wP"), 'P'));
-    CHECK(isLegalMove(b, makeMove(1, 1, 0, 2, "wP"), 'P'));
+    CHECK(isLegalMove(b, makeMove(1, 1, 0, 0, "wP"), 'P').isValid);
+    CHECK(isLegalMove(b, makeMove(1, 1, 0, 2, "wP"), 'P').isValid);
 
     Board straightIntoEnemy = parseBoard({"bP", "wP"});
-    CHECK_FALSE(isLegalMove(straightIntoEnemy, makeMove(1, 0, 0, 0, "wP"), 'P'));
+    CHECK_FALSE(isLegalMove(straightIntoEnemy, makeMove(1, 0, 0, 0, "wP"), 'P').isValid);
 }
 
 TEST_CASE("isLegalMove: a piece may never capture its own color") {
     Board b = parseBoard({"wR wP . ."});
-    CHECK_FALSE(isLegalMove(b, makeMove(0, 0, 0, 1, "wR"), 'R'));
+    CHECK_FALSE(isLegalMove(b, makeMove(0, 0, 0, 1, "wR"), 'R').isValid);
 }
 
 TEST_CASE("isLegalMove: pieces with no registered shape are unrestricted") {
     Board b = parseBoard({"wX . . .", ". . . .", ". . . .", ". . . ."});
-    CHECK(isLegalMove(b, makeMove(0, 0, 3, 1, "wX"), 'X'));
+    CHECK(isLegalMove(b, makeMove(0, 0, 3, 1, "wX"), 'X').isValid);
+}
+
+TEST_CASE("isLegalMove reasons") {
+    SUBCASE("friendly_destination") {
+        Board b = parseBoard({"wR wP . ."});
+        auto res = isLegalMove(b, makeMove(0, 0, 0, 1, "wR"), 'R');
+        CHECK_FALSE(res.isValid);
+        CHECK(res.reason == "friendly_destination");
+    }
+
+    SUBCASE("illegal_piece_move") {
+        Board b = parseBoard({"wR . . .", ". . . ."});
+        auto res = isLegalMove(b, makeMove(0, 0, 1, 1, "wR"), 'R');
+        CHECK_FALSE(res.isValid);
+        CHECK(res.reason == "illegal_piece_move");
+    }
+
+    SUBCASE("blocked_path") {
+        Board b = parseBoard({"wR wP . ."});
+        auto res = isLegalMove(b, makeMove(0, 0, 0, 2, "wR"), 'R');
+        CHECK_FALSE(res.isValid);
+        CHECK(res.reason == "blocked_path");
+    }
+
+    SUBCASE("legal") {
+        Board b = parseBoard({"wR . . .", ". . . ."});
+        auto res = isLegalMove(b, makeMove(0, 0, 0, 3, "wR"), 'R');
+        CHECK(res.isValid);
+        CHECK(res.reason == "");
+    }
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include "Board.hpp"
 #include "GameState.hpp"
+#include "MoveLegality.hpp"
 
-bool isMoveLegal(const Board &board, const PieceMove &move, char piece);
+MoveLegality isMoveLegal(const Board &board, const PieceMove &move, char piece);

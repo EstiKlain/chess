@@ -28,12 +28,6 @@ void sendMove(GameState &st, const MoveRequest &request)
         return;
     }
 
-    if (toRow < 0 || toCol < 0 || toRow >= st.board.rows() || toCol >= st.board.cols())
-    {
-        sel = Selection{};
-        return;
-    }
-
     const std::string selected = st.board.grid[sel.row][sel.col];
 
     if (hasActiveMotion(st))
@@ -55,10 +49,15 @@ void sendMove(GameState &st, const MoveRequest &request)
     double dist = cellDistance(m.fromRow, m.fromCol, toRow, toCol);
     m.durationMs = (speed > 0.0) ? (long)(dist / speed * 1000.0) : 0;
 
-    if (isMoveLegal(st.board, m, piece))
+    MoveLegality legality = isMoveLegal(st.board, m, piece);
+    if (legality.isValid)
     {
         st.board.grid[m.fromRow][m.fromCol] = ".";
         st.activeMoves.push_back(m);
+    }
+    else
+    {
+        std::cout << "Move rejected: " << legality.reason << std::endl;
     }
     sel = Selection{};
 }
