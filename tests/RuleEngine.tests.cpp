@@ -18,6 +18,22 @@ TEST_CASE("isMoveLegal delegates legal rook moves")
     CHECK(isMoveLegal(b, move, 'R').isValid);
 }
 
+TEST_CASE("isMoveLegal rejects empty source before shape checks")
+{
+    Board b;
+    b.grid = {{".", ".", "wR"}};
+    PieceMove move;
+    move.fromRow = 0;
+    move.fromCol = 0;
+    move.toRow = 0;
+    move.toCol = 2;
+    move.piece = ".";
+
+    const auto res = isMoveLegal(b, move, 'R');
+    CHECK_FALSE(res.isValid);
+    CHECK(res.reason == "empty_source");
+}
+
 TEST_CASE("isMoveLegal rejects bishop-shaped rook move")
 {
     Board b;

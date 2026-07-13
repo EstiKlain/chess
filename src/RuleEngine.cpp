@@ -3,6 +3,10 @@
 
 MoveLegality isMoveLegal(const Board &board, const PieceMove &move, char piece)
 {
+    if (isEmpty(board.grid[move.fromRow][move.fromCol]))
+    {
+        return {false, "empty_source"};
+    }
     if (move.toRow < 0 || move.toRow >= board.rows() || move.toCol < 0 || move.toCol >= board.cols())
     {
         return {false, "outside_board"};
