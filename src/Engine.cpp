@@ -11,6 +11,7 @@
 #include "RealTimeArbiter.hpp"
 #include "RuleEngine.hpp"
 #include "config.hpp"
+#include "BoardMapper.hpp"
 
 void sendMove(GameState &st, const MoveRequest &request)
 {
@@ -61,6 +62,36 @@ void sendMove(GameState &st, const MoveRequest &request)
     sel = Selection{};
 }
 
+void sendJump(GameState &st, int row, int col)
+{
+    if (st.gameOver) return;
+    if (row < 0 || col < 0 || row >= st.board.rows() || col >= st.board.cols()) return;
+
+    const std::string &token = st.board.grid[row][col];
+    if (isEmpty(token)) return;                
+
+    if (isPieceInFlight(st, row, col)) return;  
+
+    for (const auto &j : st.activeJumps)        
+        if (j.row == row && j.col == col) return;
+
+    JumpMove j;
+    j.row = row;
+    j.col = col;
+    j.startMs = st.elapsedMs;
+    j.durationMs = config::JUMP_DURATION_MS;
+    j.piece = token;
+    st.activeJumps.push_back(j);
+}
+
+void handleJump(GameState &st, int x, int y)
+{
+    if (st.gameOver) return;
+    const auto position = BoardMapper::pixelToCell(x, y, st.board.rows(), st.board.cols());
+    if (!position.has_value()) return;
+    sendJump(st, position->row, position->col);
+}
+
 void handleClick(GameState &st, int x, int y)
 {
     Controller controller(st, [&](MoveRequest request)
@@ -101,6 +132,12 @@ void runCommands(const std::vector<std::string> &commands, GameState &st)
             long ms;
             ss >> ms;
             handleWait(st, ms);
+        }
+        else if (verb == "jump")
+        {
+            int x, y;
+            ss >> x >> y;
+            handleJump(st, x, y);
         }
         else if (verb == "print")
         {

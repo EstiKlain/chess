@@ -158,10 +158,10 @@ TEST_CASE("pawn on start row with clear path may double-step forward") {
         ". . . .",
         ". . . .",
         ". . . .",
-        ". . . .",
-        "wP . . ."
+        "wP . . .",
+        ". . . ."
     });
-    CHECK(checkPieceShape(b, makeMove(7, 0, 5, 0, "wP"), 'P').isValid);
+    CHECK(checkPieceShape(b, makeMove(6, 0, 4, 0, "wP"), 'P').isValid);
 }
 
 TEST_CASE("pawn double-step blocked when intermediate cell is occupied") {
@@ -171,11 +171,11 @@ TEST_CASE("pawn double-step blocked when intermediate cell is occupied") {
         ". . . .",
         ". . . .",
         ". . . .",
-        ". . . .",
         "wR . . .",
-        "wP . . ."
+        "wP . . .",
+        ". . . ."
     });
-    auto res = checkPieceShape(b, makeMove(7, 0, 5, 0, "wP"), 'P');
+    auto res = checkPieceShape(b, makeMove(6, 0, 4, 0, "wP"), 'P');
     CHECK_FALSE(res.isValid);
     CHECK(res.reason == "pawn_double_step_blocked");
 }

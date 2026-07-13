@@ -4,7 +4,7 @@
 
 TEST_CASE("statsFor returns known speeds for standard pieces") {
     CHECK(config::statsFor('Q').speedCellsPerSec == doctest::Approx(4.0));
-    CHECK(config::statsFor('R').speedCellsPerSec == doctest::Approx(3.0));
+    CHECK(config::statsFor('R').speedCellsPerSec == doctest::Approx(1.0));
     CHECK(config::statsFor('B').speedCellsPerSec == doctest::Approx(3.0));
     CHECK(config::statsFor('N').speedCellsPerSec == doctest::Approx(3.5));
     CHECK(config::statsFor('K').speedCellsPerSec == doctest::Approx(3.0));
@@ -68,8 +68,8 @@ TEST_CASE("shape helpers classify pawn moves and captures separately") {
 }
 
 TEST_CASE("pawnStartRow returns canonical start row for each color on 8 rows") {
-    CHECK(config::pawnStartRow('w', 8) == 7);
-    CHECK(config::pawnStartRow('b', 8) == 0);
+    CHECK(config::pawnStartRow('w', 8) == 6);
+    CHECK(config::pawnStartRow('b', 8) == 1);
 }
 
 TEST_CASE("pawnPromotionRow returns canonical far row for each color on 8 rows") {

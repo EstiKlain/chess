@@ -21,11 +21,20 @@ struct PieceMove
     std::string piece;
 };
 
+struct JumpMove
+{
+    int row, col;
+    long startMs;
+    long durationMs;
+    std::string piece;
+};
+
 struct GameState
 {
     Board board;
     long elapsedMs = 0;
     Selection selection;
     std::vector<PieceMove> activeMoves;
+    std::vector<JumpMove> activeJumps;
     bool gameOver = false;
 };

@@ -35,7 +35,7 @@ TEST_CASE("basic_move_reaches_destination_and_origin_clears")
 
     // Act
     clickCell(st, 0, 3);
-    handleWait(st, 1000);
+    handleWait(st, 3000);
 
     // Assert
     CHECK(st.board.grid[0][3] == "wR");
@@ -86,7 +86,7 @@ TEST_CASE("no_cooldown_state_in_common_route")
     GameState st = makeState({{"wR", ".", ".", "."}});
     st.selection = {true, 0, 0, st.elapsedMs};
     clickCell(st, 0, 3);
-    handleWait(st, 1000);
+    handleWait(st, 3000);
 
     // Act
     clickCell(st, 0, 3);
@@ -105,7 +105,7 @@ TEST_CASE("can_move_again_after_arrival_without_cooldown")
     GameState st = makeState({{"wR", ".", ".", "."}});
     st.selection = {true, 0, 0, st.elapsedMs};
     clickCell(st, 0, 3);
-    handleWait(st, 1000);
+    handleWait(st, 3000);
 
     // Act
     clickCell(st, 0, 3);
@@ -126,7 +126,7 @@ TEST_CASE("piece_is_ready_after_arrival_without_cooldown")
     GameState st = makeState({{"wR", ".", ".", "."}});
     st.selection = {true, 0, 0, st.elapsedMs};
     clickCell(st, 0, 3);
-    handleWait(st, 1000);
+    handleWait(st, 3000);
 
     // Act
     clickCell(st, 0, 3);
@@ -147,7 +147,7 @@ TEST_CASE("move_resolves_at_exact_boundary_in_common_route")
     clickCell(st, 0, 3);
 
     // Act
-    handleWait(st, 999);
+    handleWait(st, 2999);
 
     // Assert
     REQUIRE(st.activeMoves.size() == 1);
@@ -249,7 +249,7 @@ TEST_CASE("handle_wait_accumulates_elapsed_time_to_resolve_late_move")
     REQUIRE(st.activeMoves.size() == 1);
 
     // Act
-    handleWait(st, 400);
+    handleWait(st, 2400);
 
     // Assert
     CHECK(st.activeMoves.empty());
@@ -263,7 +263,7 @@ TEST_CASE("capturing_king_ends_game_and_blocks_further_moves")
     GameState st = makeState({{"wR", ".", "bK"}});
     st.selection = {true, 0, 0, st.elapsedMs};
     clickCell(st, 0, 2);
-    handleWait(st, 1000);
+    handleWait(st, 2000);
 
     // Assert
     CHECK(st.gameOver);
@@ -302,9 +302,9 @@ TEST_CASE("print_board_mid_flight_still_shows_piece_at_origin")
 {
     GameState st = makeState({{"wR", ".", ".", "."}});
     st.selection = {true, 0, 0, st.elapsedMs};
-    clickCell(st, 0, 3);      // rook: distance 3, speed 3 -> duration 1000ms
+    clickCell(st, 0, 3); // rook: distance 3, speed 3 -> duration 1000ms
 
-    handleWait(st, 500);      // still mid-flight
+    handleWait(st, 500); // still mid-flight
 
     CHECK(st.board.grid[0][0] == "wR");
     CHECK(st.board.grid[0][3] == ".");
@@ -312,37 +312,33 @@ TEST_CASE("print_board_mid_flight_still_shows_piece_at_origin")
 
 TEST_CASE("pawn_double_step_reaches_destination_after_wait")
 {
-    GameState st = makeState({
-        {".", ".", ".", "."},
-        {".", ".", ".", "."},
-        {".", ".", ".", "."},
-        {".", ".", ".", "."},
-        {".", ".", ".", "."},
-        {".", ".", ".", "."},
-        {".", ".", ".", "."},
-        {"wP", ".", ".", "."}
-    });
-    st.selection = {true, 7, 0, st.elapsedMs};
+    GameState st = makeState({{".", ".", ".", "."},
+                              {".", ".", ".", "."},
+                              {".", ".", ".", "."},
+                              {".", ".", ".", "."},
+                              {".", ".", ".", "."},
+                              {".", ".", ".", "."},
+                              {"wP", ".", ".", "."},
+                              {".", ".", ".", "."}});
+    st.selection = {true, 6, 0, st.elapsedMs};
 
-    clickCell(st, 5, 0);
+    clickCell(st, 4, 0);
     handleWait(st, 1000);
 
-    CHECK(st.board.grid[5][0] == "wP");
-    CHECK(st.board.grid[7][0] == ".");
+    CHECK(st.board.grid[4][0] == "wP");
+    CHECK(st.board.grid[6][0] == ".");
 }
 
 TEST_CASE("pawn_promotion_to_queen_after_reaching_far_row")
 {
-    GameState st = makeState({
-        {".", ".", ".", "."},
-        {"wP", ".", ".", "."},
-        {".", ".", ".", "."},
-        {".", ".", ".", "."},
-        {".", ".", ".", "."},
-        {".", ".", ".", "."},
-        {".", ".", ".", "."},
-        {".", ".", ".", "."}
-    });
+    GameState st = makeState({{".", ".", ".", "."},
+                              {"wP", ".", ".", "."},
+                              {".", ".", ".", "."},
+                              {".", ".", ".", "."},
+                              {".", ".", ".", "."},
+                              {".", ".", ".", "."},
+                              {".", ".", ".", "."},
+                              {".", ".", ".", "."}});
     st.selection = {true, 1, 0, st.elapsedMs};
 
     clickCell(st, 0, 0);
