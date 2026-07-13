@@ -5,15 +5,16 @@
 #include "Board.hpp"
 #include "Movement.hpp"
 #include "config.hpp"
-std::vector<std::string> resolveMoves(GameState &st)
+
+std::vector<std::string> RealTimeArbiter::resolveMoves(Board &board, long elapsedMs)
 {
     std::vector<std::string> captured;
     std::vector<size_t> due;
     std::vector<PieceMove> stillMoving;
-    for (size_t i = 0; i < st.activeMoves.size(); ++i)
+    for (size_t i = 0; i < activeMoves_.size(); ++i)
     {
-        const PieceMove &m = st.activeMoves[i];
-        if (st.elapsedMs >= m.startMs + m.durationMs)
+        const PieceMove &m = activeMoves_[i];
+        if (elapsedMs >= m.startMs + m.durationMs)
             due.push_back(i);
         else
             stillMoving.push_back(m);
@@ -21,20 +22,20 @@ std::vector<std::string> resolveMoves(GameState &st)
 
     std::sort(due.begin(), due.end(), [&](size_t a, size_t b)
               {
-        long ta = st.activeMoves[a].startMs + st.activeMoves[a].durationMs;
-        long tb = st.activeMoves[b].startMs + st.activeMoves[b].durationMs;
+        long ta = activeMoves_[a].startMs + activeMoves_[a].durationMs;
+        long tb = activeMoves_[b].startMs + activeMoves_[b].durationMs;
         if (ta != tb) return ta < tb;
         return a < b; });
 
     for (size_t idx : due)
     {
-        const PieceMove &m = st.activeMoves[idx];
+        const PieceMove &m = activeMoves_[idx];
         long arrivalMs = m.startMs + m.durationMs;
-        std::string &target = st.board.grid[m.toRow][m.toCol];
-        std::string &origin = st.board.grid[m.fromRow][m.fromCol];
+        std::string &target = board.grid[m.toRow][m.toCol];
+        std::string &origin = board.grid[m.fromRow][m.fromCol];
 
         bool reverseCaptured = false;
-        for (const auto &j : st.activeJumps)
+        for (const auto &j : activeJumps_)
         {
             if (j.row != m.toRow || j.col != m.toCol)
                 continue;
@@ -47,7 +48,7 @@ std::vector<std::string> resolveMoves(GameState &st)
                 // the jumper wins: the arriving piece is captured,
                 // the jumper stays exactly where it was (rule 2)
                 captured.push_back(m.piece);
-                st.board.grid[m.fromRow][m.fromCol] = ".";
+                board.grid[m.fromRow][m.fromCol] = ".";
                 reverseCaptured = true;
             }
             break; // at most one jump can occupy a given cell
@@ -59,14 +60,14 @@ std::vector<std::string> resolveMoves(GameState &st)
         {
             captured.push_back(target);
             target = m.piece;
-            if (pieceOf(m.piece) == 'P' && m.toRow == config::pawnPromotionRow(colorOf(m.piece), st.board.rows()))
+            if (pieceOf(m.piece) == 'P' && m.toRow == config::pawnPromotionRow(colorOf(m.piece), board.rows()))
                 target[1] = 'Q';
             origin = ".";
         }
         else if (isEmpty(target))
         {
             target = m.piece;
-            if (pieceOf(m.piece) == 'P' && m.toRow == config::pawnPromotionRow(colorOf(m.piece), st.board.rows()))
+            if (pieceOf(m.piece) == 'P' && m.toRow == config::pawnPromotionRow(colorOf(m.piece), board.rows()))
                 target[1] = 'Q';
             origin = ".";
         }
@@ -74,23 +75,22 @@ std::vector<std::string> resolveMoves(GameState &st)
         // (origin was never cleared, so nothing to do here)
     }
 
-    st.activeMoves = stillMoving;
+    activeMoves_ = stillMoving;
 
     std::vector<JumpMove> stillJumping;
-    for (const auto &j : st.activeJumps)
+    for (const auto &j : activeJumps_)
     {
-        if (st.elapsedMs >= j.startMs + j.durationMs)
+        if (elapsedMs >= j.startMs + j.durationMs)
             continue; // landed, drop it
         stillJumping.push_back(j);
     }
-    st.activeJumps = stillJumping;
+    activeJumps_ = stillJumping;
     return captured;
 }
 
-// will be used once multiple concurrent moves are supported
-bool isPieceInFlight(const GameState &st, int row, int col)
+bool RealTimeArbiter::isPieceInFlight(int row, int col) const
 {
-    for (const PieceMove &move : st.activeMoves)
+    for (const PieceMove &move : activeMoves_)
     {
         if (move.fromRow == row && move.fromCol == col)
         {
@@ -100,7 +100,25 @@ bool isPieceInFlight(const GameState &st, int row, int col)
     return false;
 }
 
-bool hasActiveMotion(const GameState &st)
+bool RealTimeArbiter::hasActiveMotion() const
 {
-    return !st.activeMoves.empty();
+    return !activeMoves_.empty();
+}
+
+void RealTimeArbiter::startMotion(const PieceMove &move)
+{
+    activeMoves_.push_back(move);
+}
+
+bool RealTimeArbiter::hasActiveJumpAt(int row, int col) const
+{
+    for (const auto &j : activeJumps_)
+        if (j.row == row && j.col == col)
+            return true;
+    return false;
+}
+
+void RealTimeArbiter::startJump(const JumpMove &jump)
+{
+    activeJumps_.push_back(jump);
 }

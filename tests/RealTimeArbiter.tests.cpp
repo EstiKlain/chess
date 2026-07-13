@@ -2,18 +2,17 @@
 
 #include "RealTimeArbiter.hpp"
 #include "Board.hpp"
-#include "GameState.hpp"
 
 namespace
 {
-    GameState makeState(std::initializer_list<std::initializer_list<std::string>> rows)
+    Board makeBoard(std::initializer_list<std::initializer_list<std::string>> rows)
     {
-        GameState st;
+        Board b;
         for (const auto &row : rows)
         {
-            st.board.grid.push_back(std::vector<std::string>(row.begin(), row.end()));
+            b.grid.push_back(std::vector<std::string>(row.begin(), row.end()));
         }
-        return st;
+        return b;
     }
 }
 
@@ -21,7 +20,7 @@ TEST_CASE("is_piece_in_flight_matches_origin_square_state_during_move")
 {
     // Why this matters: the origin square should be treated as occupied by an in-flight piece until the move lands, matching the current engine flow.
     // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}});
+    RealTimeArbiter arbiter;
     PieceMove m;
     m.fromRow = 0;
     m.fromCol = 0;
@@ -30,22 +29,22 @@ TEST_CASE("is_piece_in_flight_matches_origin_square_state_during_move")
     m.startMs = 0;
     m.durationMs = 1000;
     m.piece = "wR";
-    st.activeMoves.push_back(m);
+    arbiter.startMotion(m);
 
     // Act / Assert
-    CHECK(isPieceInFlight(st, 0, 0));
-    CHECK_FALSE(isPieceInFlight(st, 0, 3));
+    CHECK(arbiter.isPieceInFlight(0, 0));
+    CHECK_FALSE(arbiter.isPieceInFlight(0, 3));
 }
 
 TEST_CASE("hasActiveMotion is false when activeMoves is empty")
 {
-    GameState st = makeState({{"wR", "."}});
-    CHECK_FALSE(hasActiveMotion(st));
+    RealTimeArbiter arbiter;
+    CHECK_FALSE(arbiter.hasActiveMotion());
 }
 
 TEST_CASE("hasActiveMotion is true when a move is in flight")
 {
-    GameState st = makeState({{"wR", "."}});
+    RealTimeArbiter arbiter;
     PieceMove m;
     m.fromRow = 0;
     m.fromCol = 0;
@@ -54,14 +53,15 @@ TEST_CASE("hasActiveMotion is true when a move is in flight")
     m.startMs = 0;
     m.durationMs = 1000;
     m.piece = "wR";
-    st.activeMoves.push_back(m);
-    CHECK(hasActiveMotion(st));
+    arbiter.startMotion(m);
+    CHECK(arbiter.hasActiveMotion());
 }
 
 TEST_CASE("resolveMoves lands the piece at destination when duration expires")
 {
     // Arrange: יוצרים לוח שבו הכלי wR יצא מ-(0,0) ונמצא בדרך ל-(0,2)
-    GameState st = makeState({{".", ".", "."}});
+    Board b = makeBoard({{".", ".", "."}});
+    RealTimeArbiter arbiter;
     PieceMove m;
     m.fromRow = 0;
     m.fromCol = 0;
@@ -70,22 +70,21 @@ TEST_CASE("resolveMoves lands the piece at destination when duration expires")
     m.startMs = 0;
     m.durationMs = 500;
     m.piece = "wR";
-    st.activeMoves.push_back(m);
+    arbiter.startMotion(m);
 
     // נקבע שהזמן הנוכחי הוא 600ms (עבר את ה-500ms של משך התנועה)
-    st.elapsedMs = 600;
-
     // Act
-    resolveMoves(st);
+    arbiter.resolveMoves(b, 600);
 
     // Assert: המהלך היה צריך להסתיים
-    CHECK(st.activeMoves.empty());      // תור התנועות התרוקן
-    CHECK(st.board.grid[0][2] == "wR"); // הכלי נחת בהצלחה ביעד
+    CHECK_FALSE(arbiter.hasActiveMotion()); // תור התנועות התרוקן
+    CHECK(b.grid[0][2] == "wR");            // הכלי נחת בהצלחה ביעד
 }
 
 TEST_CASE("white pawn promoted to queen on arrival at row 0")
 {
-    GameState st = makeState({{"."}, {"wP"}});
+    Board b = makeBoard({{"."}, {"wP"}});
+    RealTimeArbiter arbiter;
     PieceMove m;
     m.fromRow = 1;
     m.fromCol = 0;
@@ -94,17 +93,17 @@ TEST_CASE("white pawn promoted to queen on arrival at row 0")
     m.startMs = 0;
     m.durationMs = 500;
     m.piece = "wP";
-    st.activeMoves.push_back(m);
-    st.elapsedMs = 500;
+    arbiter.startMotion(m);
 
-    resolveMoves(st);
+    arbiter.resolveMoves(b, 500);
 
-    CHECK(st.board.grid[0][0] == "wQ");
+    CHECK(b.grid[0][0] == "wQ");
 }
 
 TEST_CASE("black pawn promoted to queen on arrival at last row")
 {
-    GameState st = makeState({{"."}, {"."}, {"."}, {"."}, {"."}, {"."}, {"."}, {"."}});
+    Board b = makeBoard({{"."}, {"."}, {"."}, {"."}, {"."}, {"."}, {"."}, {"."}});
+    RealTimeArbiter arbiter;
     PieceMove m;
     m.fromRow = 6;
     m.fromCol = 0;
@@ -113,17 +112,16 @@ TEST_CASE("black pawn promoted to queen on arrival at last row")
     m.startMs = 0;
     m.durationMs = 500;
     m.piece = "bP";
-    st.activeMoves.push_back(m);
-    st.elapsedMs = 500;
+    arbiter.startMotion(m);
 
-    resolveMoves(st);
+    arbiter.resolveMoves(b, 500);
 
-    CHECK(st.board.grid[7][0] == "bQ");
+    CHECK(b.grid[7][0] == "bQ");
 }
 
 TEST_CASE("pawn arriving at non-promotion row remains a pawn")
 {
-    GameState st = makeState({
+    Board b = makeBoard({
         {".", ".", "."},
         {".", ".", "."},
         {".", ".", "."},
@@ -133,6 +131,7 @@ TEST_CASE("pawn arriving at non-promotion row remains a pawn")
         {"wP", ".", "."},
         {".", ".", "."}
     });
+    RealTimeArbiter arbiter;
     PieceMove m;
     m.fromRow = 6;
     m.fromCol = 0;
@@ -141,17 +140,17 @@ TEST_CASE("pawn arriving at non-promotion row remains a pawn")
     m.startMs = 0;
     m.durationMs = 500;
     m.piece = "wP";
-    st.activeMoves.push_back(m);
-    st.elapsedMs = 500;
+    arbiter.startMotion(m);
 
-    resolveMoves(st);
+    arbiter.resolveMoves(b, 500);
 
-    CHECK(st.board.grid[5][0] == "wP");
+    CHECK(b.grid[5][0] == "wP");
 }
 
 TEST_CASE("non-pawn piece is never modified by promotion check")
 {
-    GameState st = makeState({{"."}, {"wR"}});
+    Board b = makeBoard({{"."}, {"wR"}});
+    RealTimeArbiter arbiter;
     PieceMove m;
     m.fromRow = 1;
     m.fromCol = 0;
@@ -160,17 +159,17 @@ TEST_CASE("non-pawn piece is never modified by promotion check")
     m.startMs = 0;
     m.durationMs = 500;
     m.piece = "wR";
-    st.activeMoves.push_back(m);
-    st.elapsedMs = 500;
+    arbiter.startMotion(m);
 
-    resolveMoves(st);
+    arbiter.resolveMoves(b, 500);
 
-    CHECK(st.board.grid[0][0] == "wR");
+    CHECK(b.grid[0][0] == "wR");
 }
 
 TEST_CASE("pawn promotion applies when arrival is a capture")
 {
-    GameState st = makeState({{"bK"}, {"wP"}});
+    Board b = makeBoard({{"bK"}, {"wP"}});
+    RealTimeArbiter arbiter;
     PieceMove m;
     m.fromRow = 1;
     m.fromCol = 0;
@@ -179,12 +178,11 @@ TEST_CASE("pawn promotion applies when arrival is a capture")
     m.startMs = 0;
     m.durationMs = 500;
     m.piece = "wP";
-    st.activeMoves.push_back(m);
-    st.elapsedMs = 500;
+    arbiter.startMotion(m);
 
-    std::vector<std::string> captured = resolveMoves(st);
+    std::vector<std::string> captured = arbiter.resolveMoves(b, 500);
 
     CHECK(captured.size() == 1);
     CHECK(captured[0] == "bK");
-    CHECK(st.board.grid[0][0] == "wQ");
+    CHECK(b.grid[0][0] == "wQ");
 }

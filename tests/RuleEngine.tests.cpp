@@ -3,7 +3,6 @@
 #include "RuleEngine.hpp"
 #include "Board.hpp"
 #include "BoardParser.hpp"
-#include "GameState.hpp"
 
 TEST_CASE("isMoveLegal delegates legal rook moves")
 {

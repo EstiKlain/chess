@@ -3,7 +3,6 @@
 #include "Movement.hpp"
 #include "Board.hpp"
 #include "BoardParser.hpp"
-#include "GameState.hpp"
 
 namespace {
     PieceMove makeMove(int fromRow, int fromCol, int toRow, int toCol, const std::string& piece) {

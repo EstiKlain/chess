@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Board.hpp"
-#include "GameState.hpp"
+#include "Moves.hpp"
 #include "MoveLegality.hpp"
 
 int playerIndexOf(char color);

@@ -8,7 +8,6 @@ add_executable(chess_game
     src/main.cpp
     src/Board.cpp
     src/Movement.cpp
-    src/Engine.cpp
     src/Controller.cpp
     src/BoardMapper.cpp
     src/RealTimeArbiter.cpp
@@ -16,6 +15,7 @@ add_executable(chess_game
     src/GameOverRule.cpp
     src/BoardParser.cpp
     src/BoardPrinter.cpp
+    src/GameEngine.cpp
 )
 target_include_directories(chess_game PRIVATE src)
 
@@ -37,7 +37,6 @@ if(BUILD_TESTS)
         tests/GameOverRule.tests.cpp
         src/Board.cpp
         src/Movement.cpp
-        src/Engine.cpp
         src/Controller.cpp
         src/BoardMapper.cpp
         src/RealTimeArbiter.cpp
@@ -45,6 +44,7 @@ if(BUILD_TESTS)
         src/GameOverRule.cpp
         src/BoardParser.cpp
         src/BoardPrinter.cpp
+        src/GameEngine.cpp
     )
     target_include_directories(chess_tests PRIVATE src third_party)
 

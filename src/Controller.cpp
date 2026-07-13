@@ -1,69 +1,58 @@
 #include "Controller.hpp"
 
-#include <functional>
-
 #include "BoardMapper.hpp"
-#include "Engine.hpp"
-
-namespace
-{
-    void clearSelection(GameState &state)
-    {
-        state.selection = Selection{};
-    }
-}
 
 void Controller::handleClick(int x, int y)
 {
     if (x < 0 || y < 0)
     {
-        if (state_.selection.active)
+        if (selection_.active)
         {
-            clearSelection(state_);
+            selection_ = Selection{};
         }
         return;
     }
 
-    const auto position = BoardMapper::pixelToCell(x, y, state_.board.rows(), state_.board.cols());
+    const auto position = BoardMapper::pixelToCell(x, y, board_.rows(), board_.cols());
     if (!position.has_value())
     {
-        if (state_.selection.active)
+        if (selection_.active)
         {
-            clearSelection(state_);
+            selection_ = Selection{};
         }
         return;
     }
 
     const int row = position->row;
     const int col = position->col;
-    const std::string &token = state_.board.grid[row][col];
+    const std::string &token = board_.grid[row][col];
 
-    if (state_.selection.active)
+    if (selection_.active)
     {
-        const std::string &selectedToken = state_.board.grid[state_.selection.row][state_.selection.col];
+        const std::string &selectedToken = board_.grid[selection_.row][selection_.col];
         const bool sameColor = !isEmpty(token) && colorOf(token) == colorOf(selectedToken);
 
         if (sameColor)
         {
-            state_.selection = {true, row, col, state_.elapsedMs};
+            selection_ = {true, row, col};
         }
         else
         {
-            requestMove({{state_.selection.row, state_.selection.col}, {row, col}});
-            clearSelection(state_);
+            requestMove({{selection_.row, selection_.col}, {row, col}});
+            selection_ = Selection{};
         }
         return;
     }
 
     if (!isEmpty(token))
     {
-        state_.selection = {true, row, col, state_.elapsedMs};
+        selection_ = {true, row, col};
     }
 }
 
 void Controller::requestMove(const MoveRequest &request)
 {
-    if (!state_.selection.active)
+    if (!selection_.active)
     {
         return;
     }
@@ -73,8 +62,8 @@ void Controller::requestMove(const MoveRequest &request)
         requestMoveCallback_(request);
     }
 
-    if (state_.selection.active)
+    if (selection_.active)
     {
-        clearSelection(state_);
+        selection_ = Selection{};
     }
 }

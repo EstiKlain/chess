@@ -2,8 +2,7 @@
 #include <string>
 
 #include "BoardParser.hpp"
-#include "Engine.hpp"
-#include "GameState.hpp"
+#include "GameEngine.hpp"
 #include "config.hpp"
 
 int main() {
@@ -12,16 +11,16 @@ int main() {
 
     Sections sections = parseSections(input);
 
-    GameState state;
-    state.board = parseBoard(sections.boardLines);
+    Board board = parseBoard(sections.boardLines);
 
     try {
-        validateBoard(state.board);
+        validateBoard(board);
     } catch (const BoardError& e) {
         std::cout << "ERROR " << e.code() << '\n';
         return 0;
     }
 
-    runCommands(sections.commandLines, state);
+    GameEngine engine(board);
+    runCommands(sections.commandLines, engine);
     return 0;
 }
