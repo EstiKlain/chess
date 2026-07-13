@@ -3,7 +3,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "BoardMapper.hpp"
+// #include "BoardMapper.hpp"
 #include "BoardParser.hpp"
 #include "BoardPrinter.hpp"
 #include "Controller.hpp"
@@ -34,9 +34,7 @@ void runCommands(const std::vector<std::string> &commands, GameEngine &engine)
         {
             int x, y;
             ss >> x >> y;
-            const auto position = BoardMapper::pixelToCell(x, y, engine.board().rows(), engine.board().cols());
-            if (position.has_value())
-                engine.requestJump(position->row, position->col);
+            controller.handleJumpClick(x, y);
         }
         else if (verb == "print")
         {

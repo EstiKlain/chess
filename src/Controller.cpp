@@ -1,19 +1,13 @@
 #include "Controller.hpp"
 
-#include "BoardMapper.hpp"
+std::optional<Position> Controller::mapToCell(int x, int y) const
+{
+    return BoardMapper::pixelToCell(x, y, board_.rows(), board_.cols());
+}
 
 void Controller::handleClick(int x, int y)
 {
-    if (x < 0 || y < 0)
-    {
-        if (selection_.active)
-        {
-            selection_ = Selection{};
-        }
-        return;
-    }
-
-    const auto position = BoardMapper::pixelToCell(x, y, board_.rows(), board_.cols());
+    const auto position = mapToCell(x, y);
     if (!position.has_value())
     {
         if (selection_.active)
@@ -48,6 +42,16 @@ void Controller::handleClick(int x, int y)
     {
         selection_ = {true, row, col};
     }
+}
+
+void Controller::handleJumpClick(int x, int y)
+{
+    const auto position = mapToCell(x, y);
+    if (!position.has_value())
+        return;
+
+    if (requestJumpCallback_)
+        requestJumpCallback_(position->row, position->col);
 }
 
 void Controller::requestMove(const MoveRequest &request)

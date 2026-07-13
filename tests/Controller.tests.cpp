@@ -12,10 +12,16 @@ namespace
     struct FakeGameEngine
     {
         std::vector<MoveRequest> requests;
+        std::vector<std::pair<int, int>> jumps;
 
         void requestMove(const MoveRequest &request)
         {
             requests.push_back(request);
+        }
+
+        void requestJump(int row, int col)
+        {
+            jumps.emplace_back(row, col);
         }
     };
 
@@ -96,4 +102,36 @@ TEST_CASE("invalid_clicks_do_not_mutate_state")
     CHECK(b.grid[0][0] == "wR");
     CHECK(b.grid[0][2] == ".");
     CHECK(engine.requests.empty());
+}
+TEST_CASE("jump_click_outside_board_is_ignored")
+{
+    Board b = makeBoard({{"wR", ".", "."}});
+    FakeGameEngine engine;
+    Controller controller(b, engine);
+
+    controller.handleJumpClick(-1, 50);
+    controller.handleJumpClick(1000, 50);
+    controller.handleJumpClick(50, 1000);
+
+    CHECK(engine.jumps.empty());
+}
+
+TEST_CASE("jump_click_in_board_sends_correct_cell_and_does_not_touch_selection")
+{
+    Board b = makeBoard({{"wR", ".", "."}});
+    FakeGameEngine engine;
+    Controller controller(b, engine);
+
+    clickCell(controller, 0, 0);
+    CHECK(controller.hasSelection());
+
+    controller.handleJumpClick(50 + 2 * config::CELL_SIZE, 50);
+
+    REQUIRE(engine.jumps.size() == 1);
+    CHECK(engine.jumps[0].first == 0);
+    CHECK(engine.jumps[0].second == 2);
+
+    CHECK(controller.hasSelection());
+    CHECK(controller.selectedRow() == 0);
+    CHECK(controller.selectedCol() == 0);
 }
