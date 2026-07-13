@@ -19,29 +19,6 @@ private:
     std::string code_;
 };
 
-struct Sections {
-    std::vector<std::string> boardLines;
-    std::vector<std::string> commandLines;
-};
-
-std::string trim(const std::string& v);
-
-std::vector<std::string> splitWords(const std::string& line);
-
-Sections parseSections(const std::string& text);
-
-Board parseBoard(const std::vector<std::string>& boardLines);
-
-bool isValidToken(const std::string& t);
-
-void validateBoard(const Board& b);
-
-std::string formatBoard(const Board& b);
-
 bool isEmpty(const std::string& tok);
 char colorOf(const std::string& tok);
 char pieceOf(const std::string& tok);
-
-int sign(int v);
-
-bool isPathClear(const Board& board, int fromRow, int fromCol, int toRow, int toCol);

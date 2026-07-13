@@ -5,6 +5,8 @@
 #include <sstream>
 
 #include "Board.hpp"
+#include "BoardParser.hpp"
+#include "BoardPrinter.hpp"
 #include "Controller.hpp"
 #include "Movement.hpp"
 #include "GameOverRule.hpp"

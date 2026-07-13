@@ -1,7 +1,7 @@
 #include <iostream>
 #include <string>
 
-#include "Board.hpp"
+#include "BoardParser.hpp"
 #include "Engine.hpp"
 #include "GameState.hpp"
 #include "config.hpp"

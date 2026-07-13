@@ -2,6 +2,7 @@
 
 #include "Movement.hpp"
 #include "Board.hpp"
+#include "BoardParser.hpp"
 #include "GameState.hpp"
 
 namespace {

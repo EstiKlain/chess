@@ -14,6 +14,8 @@ add_executable(chess_game
     src/RealTimeArbiter.cpp
     src/RuleEngine.cpp
     src/GameOverRule.cpp
+    src/BoardParser.cpp
+    src/BoardPrinter.cpp
 )
 target_include_directories(chess_game PRIVATE src)
 
@@ -41,6 +43,8 @@ if(BUILD_TESTS)
         src/RealTimeArbiter.cpp
         src/RuleEngine.cpp
         src/GameOverRule.cpp
+        src/BoardParser.cpp
+        src/BoardPrinter.cpp
     )
     target_include_directories(chess_tests PRIVATE src third_party)
 

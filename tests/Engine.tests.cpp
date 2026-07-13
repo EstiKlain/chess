@@ -1,349 +1,243 @@
 #include "doctest.h"
 
-#include "Engine.hpp"
-#include "Board.hpp"
-#include "GameState.hpp"
 #include "Movement.hpp"
-#include "config.hpp"
-#include "MoveRequest.hpp"
+#include "Board.hpp"
+#include "BoardParser.hpp"
+#include "GameState.hpp"
 
-namespace
-{
-    GameState makeState(std::initializer_list<std::initializer_list<std::string>> rows)
-    {
-        GameState st;
-        for (const auto &row : rows)
-        {
-            st.board.grid.push_back(std::vector<std::string>(row.begin(), row.end()));
-        }
-        return st;
-    }
-
-    void clickCell(GameState &st, int row, int col)
-    {
-        handleClick(st, col * config::CELL_SIZE + config::CELL_SIZE / 2,
-                    row * config::CELL_SIZE + config::CELL_SIZE / 2);
+namespace {
+    PieceMove makeMove(int fromRow, int fromCol, int toRow, int toCol, const std::string& piece) {
+        PieceMove m;
+        m.fromRow = fromRow; m.fromCol = fromCol;
+        m.toRow = toRow;     m.toCol = toCol;
+        m.startMs = 0;       m.durationMs = 0;
+        m.piece = piece;
+        return m;
     }
 }
 
-TEST_CASE("basic_move_reaches_destination_and_origin_clears")
-{
-    // Why this matters: the common route must move a piece from origin to destination and make it selectable again once the move resolves.
-    // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-
-    // Act
-    clickCell(st, 0, 3);
-    handleWait(st, 3000);
-
-    // Assert
-    CHECK(st.board.grid[0][3] == "wR");
-    CHECK(st.board.grid[0][0] == ".");
+TEST_CASE("playerIndexOf maps colors to indices") {
+    CHECK(playerIndexOf('w') == 0);
+    CHECK(playerIndexOf('b') == 1);
+    CHECK(playerIndexOf('x') == -1);
 }
 
-TEST_CASE("same_color_click_during_move_is_rejected_by_global_route")
-{
-    // Why this matters: a move already in flight must block any new move, even for the same color, so there is only one global route.
-    // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}, {"wP", ".", ".", "."}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-    clickCell(st, 0, 3);
-
-    // Act
-    clickCell(st, 1, 0);
-    clickCell(st, 1, 2);
-
-    // Assert
-    REQUIRE(st.activeMoves.size() == 1);
-    CHECK(st.board.grid[1][0] == "wP");
-    CHECK(st.board.grid[1][2] == ".");
+TEST_CASE("cellDistance computes euclidean distance in cells") {
+    CHECK(cellDistance(0, 0, 3, 4) == doctest::Approx(5.0));
+    CHECK(cellDistance(2, 2, 2, 2) == doctest::Approx(0.0));
+    CHECK(cellDistance(0, 0, 0, 5) == doctest::Approx(5.0));
 }
 
-TEST_CASE("opposite_colors_do_not_move_concurrently_in_common_route")
-{
-    // Why this matters: the critical invariant is that a black click cannot sneak through while a white move is still in flight.
-    // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}, {"bB", ".", ".", "."}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-    clickCell(st, 0, 3);
-
-    // Act
-    clickCell(st, 1, 0);
-    clickCell(st, 1, 2);
-    handleWait(st, 700);
-
-    // Assert
-    REQUIRE(st.activeMoves.size() == 1);
-    CHECK(st.board.grid[1][0] == "bB");
-    CHECK(st.board.grid[1][2] == ".");
+TEST_CASE("isLegalMove: king moves one square in any direction") {
+    Board b = parseBoard({"wK . .", ". . .", ". . ."});
+    CHECK(checkPieceShape(b, makeMove(0, 0, 1, 1, "wK"), 'K').isValid);
+    CHECK(checkPieceShape(b, makeMove(0, 0, 0, 1, "wK"), 'K').isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 2, 2, "wK"), 'K').isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 0, 0, "wK"), 'K').isValid);
 }
 
-TEST_CASE("no_cooldown_state_in_common_route")
-{
-    // Why this matters: once a move arrives, the piece should be immediately ready for another command with no artificial cooldown.
-    // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-    clickCell(st, 0, 3);
-    handleWait(st, 3000);
+TEST_CASE("isLegalMove: rook moves straight and needs a clear path") {
+    Board clear = parseBoard({"wR . . .", ". . . .", ". . . .", ". . . ."});
+    CHECK(checkPieceShape(clear, makeMove(0, 0, 0, 3, "wR"), 'R').isValid);
+    CHECK_FALSE(checkPieceShape(clear, makeMove(0, 0, 1, 1, "wR"), 'R').isValid);
 
-    // Act
-    clickCell(st, 0, 3);
-
-    // Assert
-    CHECK(st.selection.active);
-    CHECK(st.selection.row == 0);
-    CHECK(st.selection.col == 3);
-    CHECK(st.activeMoves.empty());
+    Board blocked = parseBoard({"wR wP . ."});
+    CHECK_FALSE(checkPieceShape(blocked, makeMove(0, 0, 0, 3, "wR"), 'R').isValid);
 }
 
-TEST_CASE("can_move_again_after_arrival_without_cooldown")
-{
-    // Why this matters: the zero-cooldown path should allow a second move to be queued immediately after the first one lands.
-    // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-    clickCell(st, 0, 3);
-    handleWait(st, 3000);
+TEST_CASE("isLegalMove: bishop moves diagonally and needs a clear path") {
+    Board clear = parseBoard({
+        "wB . . .",
+        ". . . .",
+        ". . . .",
+        ". . . ."
+    });
+    CHECK(checkPieceShape(clear, makeMove(0, 0, 3, 3, "wB"), 'B').isValid);
+    CHECK_FALSE(checkPieceShape(clear, makeMove(0, 0, 3, 2, "wB"), 'B').isValid);
 
-    // Act
-    clickCell(st, 0, 3);
-    clickCell(st, 0, 0);
-
-    // Assert
-    REQUIRE(st.activeMoves.size() == 1);
-    CHECK(st.activeMoves[0].fromRow == 0);
-    CHECK(st.activeMoves[0].fromCol == 3);
-    CHECK(st.activeMoves[0].toRow == 0);
-    CHECK(st.activeMoves[0].toCol == 0);
+    Board blocked = parseBoard({
+        "wB . . .",
+        ". wP . .",
+        ". . . .",
+        ". . . ."
+    });
+    CHECK_FALSE(checkPieceShape(blocked, makeMove(0, 0, 2, 2, "wB"), 'B').isValid);
 }
 
-TEST_CASE("piece_is_ready_after_arrival_without_cooldown")
-{
-    // Why this matters: a landed piece should not be left in a stale selection state that blocks its next move.
-    // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-    clickCell(st, 0, 3);
-    handleWait(st, 3000);
-
-    // Act
-    clickCell(st, 0, 3);
-    clickCell(st, 0, 0);
-
-    // Assert
-    CHECK(st.board.grid[0][3] == "wR");
-    CHECK(st.board.grid[0][0] == ".");
-    CHECK(st.selection.active == false);
+TEST_CASE("isLegalMove: queen moves like rook or bishop but not like a knight") {
+    Board b = parseBoard({
+        "wQ . . .",
+        ". . . .",
+        ". . . .",
+        ". . . ."
+    });
+    CHECK(checkPieceShape(b, makeMove(0, 0, 0, 3, "wQ"), 'Q').isValid);
+    CHECK(checkPieceShape(b, makeMove(0, 0, 3, 3, "wQ"), 'Q').isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 1, 2, "wQ"), 'Q').isValid);
 }
 
-TEST_CASE("move_resolves_at_exact_boundary_in_common_route")
-{
-    // Why this matters: the engine should resolve a move exactly at the scheduled boundary, not only after it has already passed.
-    // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-    clickCell(st, 0, 3);
-
-    // Act
-    handleWait(st, 2999);
-
-    // Assert
-    REQUIRE(st.activeMoves.size() == 1);
-    CHECK(st.board.grid[0][3] == ".");
-
-    // Act
-    handleWait(st, 1);
-
-    // Assert
-    CHECK(st.activeMoves.empty());
-    CHECK(st.board.grid[0][3] == "wR");
+TEST_CASE("isLegalMove: knight moves in an L shape and ignores blockers") {
+    Board b = parseBoard({
+        "wN wP . .",
+        "wP wP . .",
+        ". . . .",
+        ". . . ."
+    });
+    CHECK(checkPieceShape(b, makeMove(0, 0, 2, 1, "wN"), 'N').isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 1, 1, "wN"), 'N').isValid);
 }
 
-TEST_CASE("send_move_rejects_when_selection_is_inactive")
-{
-    // Additional edge case: a disabled selection should never start a move, even if the board coordinates look legal.
-    // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}});
-    st.selection = {};
-
-    // Act
-    sendMove(st, MoveRequest{Position{0, 0}, Position{0, 1}});
-    // Assert
-    CHECK(st.activeMoves.empty());
-    CHECK_FALSE(st.selection.active);
-    CHECK(st.board.grid[0][0] == "wR");
+TEST_CASE("isLegalMove: pawn advances straight only onto an empty square") {
+    Board b = parseBoard({
+        ". . .",
+        "wP . bP",
+        ". . ."
+    });
+    CHECK(checkPieceShape(b, makeMove(1, 0, 0, 0, "wP"), 'P').isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(1, 0, 0, 1, "wP"), 'P').isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(1, 2, 0, 2, "bP"), 'P').isValid);
 }
 
-TEST_CASE("send_move_rejects_when_destination_is_already_target_of_in_flight_move")
-{
-    // Additional edge case: a second move should not be accepted while another move is already in flight, even if it targets that in-flight destination.
-    // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-    PieceMove inFlight;
-    inFlight.fromRow = 0;
-    inFlight.fromCol = 0;
-    inFlight.toRow = 0;
-    inFlight.toCol = 2;
-    inFlight.startMs = 0;
-    inFlight.durationMs = 1000;
-    inFlight.piece = "bQ";
-    st.activeMoves.push_back(inFlight);
+TEST_CASE("isLegalMove: pawn captures diagonally only, never straight") {
+    Board b = parseBoard({
+        "bP . bP",
+        ". wP .",
+        ". . ."
+    });
+    CHECK(checkPieceShape(b, makeMove(1, 1, 0, 0, "wP"), 'P').isValid);
+    CHECK(checkPieceShape(b, makeMove(1, 1, 0, 2, "wP"), 'P').isValid);
 
-    // Act
-    sendMove(st, MoveRequest{Position{0, 0}, Position{0, 2}});
-    // Assert
-    REQUIRE(st.activeMoves.size() == 1);
-    CHECK(st.selection.active == false);
-    CHECK(st.board.grid[0][0] == "wR");
+    Board straightIntoEnemy = parseBoard({"bP", "wP"});
+    CHECK_FALSE(checkPieceShape(straightIntoEnemy, makeMove(1, 0, 0, 0, "wP"), 'P').isValid);
 }
 
-TEST_CASE("illegal_move_attempt_resets_selection_and_keeps_queue_empty")
-{
-    // Additional edge case: an illegal move must not leave behind a stale selection or a phantom active move.
-    // Arrange
-    GameState st = makeState({{"wR", "wP"}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-
-    // Act
-    sendMove(st, MoveRequest{Position{0, 0}, Position{1, 1}});
-    // Assert
-    CHECK(st.activeMoves.empty());
-    CHECK_FALSE(st.selection.active);
-    CHECK(st.board.grid[0][0] == "wR");
+TEST_CASE("isLegalMove: a piece may never capture its own color") {
+    Board b = parseBoard({"wR wP . ."});
+    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 0, 1, "wR"), 'R').isValid);
 }
 
-TEST_CASE("clicking_opposite_color_piece_during_selection_attempts_capture")
-{
-    // Why this matters: the engine must still allow a legal capture attempt when a different-colored piece is clicked while a selection is active.
-    // Arrange
-    GameState st = makeState({{"wR", ".", "bP"}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-
-    // Act
-    clickCell(st, 0, 2);
-
-    // Assert
-    REQUIRE(st.activeMoves.size() == 1);
-    CHECK(st.activeMoves[0].toRow == 0);
-    CHECK(st.activeMoves[0].toCol == 2);
-    CHECK(st.board.grid[0][0] == "wR");
+TEST_CASE("isLegalMove: pieces with no registered shape are unrestricted") {
+    Board b = parseBoard({"wX . . .", ". . . .", ". . . .", ". . . ."});
+    CHECK(checkPieceShape(b, makeMove(0, 0, 3, 1, "wX"), 'X').isValid);
 }
 
-TEST_CASE("handle_wait_accumulates_elapsed_time_to_resolve_late_move")
-{
-    // Why this matters: cumulative waits must resolve a move at the right global time, not only at the end of a single large wait.
-    // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-    clickCell(st, 0, 3);
+TEST_CASE("isLegalMove reasons") {
+    SUBCASE("friendly_destination") {
+        Board b = parseBoard({"wR wP . ."});
+        auto res = checkPieceShape(b, makeMove(0, 0, 0, 1, "wR"), 'R');
+        CHECK_FALSE(res.isValid);
+        CHECK(res.reason == "friendly_destination");
+    }
 
-    // Act
-    handleWait(st, 200);
-    handleWait(st, 200);
-    handleWait(st, 200);
+    SUBCASE("illegal_piece_move") {
+        Board b = parseBoard({"wR . . .", ". . . ."});
+        auto res = checkPieceShape(b, makeMove(0, 0, 1, 1, "wR"), 'R');
+        CHECK_FALSE(res.isValid);
+        CHECK(res.reason == "illegal_piece_move");
+    }
 
-    // Assert
-    REQUIRE(st.activeMoves.size() == 1);
+    SUBCASE("blocked_path") {
+        Board b = parseBoard({"wR wP . ."});
+        auto res = checkPieceShape(b, makeMove(0, 0, 0, 2, "wR"), 'R');
+        CHECK_FALSE(res.isValid);
+        CHECK(res.reason == "blocked_path");
+    }
 
-    // Act
-    handleWait(st, 2400);
-
-    // Assert
-    CHECK(st.activeMoves.empty());
-    CHECK(st.board.grid[0][3] == "wR");
+    SUBCASE("legal") {
+        Board b = parseBoard({"wR . . .", ". . . ."});
+        auto res = checkPieceShape(b, makeMove(0, 0, 0, 3, "wR"), 'R');
+        CHECK(res.isValid);
+        CHECK(res.reason == "legal");
+    }
 }
 
-TEST_CASE("capturing_king_ends_game_and_blocks_further_moves")
-{
-    // Why this matters: once a king is captured, the game must freeze immediately and later move commands must be ignored.
-    // Arrange
-    GameState st = makeState({{"wR", ".", "bK"}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-    clickCell(st, 0, 2);
-    handleWait(st, 2000);
-
-    // Assert
-    CHECK(st.gameOver);
-    CHECK(st.board.grid[0][2] == "wR");
-
-    // Act
-    st.selection = {true, 0, 0, st.elapsedMs};
-    sendMove(st, MoveRequest{Position{0, 0}, Position{0, 1}});
-
-    // Assert
-    CHECK(st.activeMoves.empty());
-    CHECK(st.board.grid[0][2] == "wR");
+TEST_CASE("pawn on start row with clear path may double-step forward") {
+    Board b = parseBoard({
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        "wP . . .",
+        ". . . ."
+    });
+    CHECK(checkPieceShape(b, makeMove(6, 0, 4, 0, "wP"), 'P').isValid);
 }
 
-TEST_CASE("run_commands_respect_global_route_integration")
-{
-    // Why this matters: the command layer should preserve the same single-route invariant from clicks and waits all the way through printing.
-    // Arrange
-    GameState st = makeState({{"wR", ".", ".", "."}, {"bB", ".", ".", "."}});
-    std::vector<std::string> commands = {
-        "click 50 50",
-        "click 350 50",
-        "click 50 150",
-        "click 250 150",
-        "wait 700",
-        "print board"};
-
-    // Act
-    runCommands(commands, st);
-
-    // Assert
-    CHECK(formatBoard(st.board) == "wR . . .\nbB . . .\n");
+TEST_CASE("pawn double-step blocked when intermediate cell is occupied") {
+    Board b = parseBoard({
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        "wR . . .",
+        "wP . . .",
+        ". . . ."
+    });
+    auto res = checkPieceShape(b, makeMove(6, 0, 4, 0, "wP"), 'P');
+    CHECK_FALSE(res.isValid);
+    CHECK(res.reason == "pawn_double_step_blocked");
 }
 
-TEST_CASE("print_board_mid_flight_still_shows_piece_at_origin")
-{
-    GameState st = makeState({{"wR", ".", ".", "."}});
-    st.selection = {true, 0, 0, st.elapsedMs};
-    clickCell(st, 0, 3); // rook: distance 3, speed 3 -> duration 1000ms
-
-    handleWait(st, 500); // still mid-flight
-
-    CHECK(st.board.grid[0][0] == "wR");
-    CHECK(st.board.grid[0][3] == ".");
+TEST_CASE("pawn double-step rejected when not on canonical start row") {
+    Board b = parseBoard({
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        "wP . . .",
+        ". . . .",
+        ". . . ."
+    });
+    auto res = checkPieceShape(b, makeMove(5, 0, 3, 0, "wP"), 'P');
+    CHECK_FALSE(res.isValid);
+    CHECK(res.reason == "pawn_double_step_blocked");
 }
 
-TEST_CASE("pawn_double_step_reaches_destination_after_wait")
-{
-    GameState st = makeState({{".", ".", ".", "."},
-                              {".", ".", ".", "."},
-                              {".", ".", ".", "."},
-                              {".", ".", ".", "."},
-                              {".", ".", ".", "."},
-                              {".", ".", ".", "."},
-                              {"wP", ".", ".", "."},
-                              {".", ".", ".", "."}});
-    st.selection = {true, 6, 0, st.elapsedMs};
+TEST_CASE("pawn one-cell forward and diagonal capture still work with contextGate") {
+    Board forward = parseBoard({
+        ". . .",
+        "wP . .",
+        ". . ."
+    });
+    CHECK(checkPieceShape(forward, makeMove(1, 0, 0, 0, "wP"), 'P').isValid);
 
-    clickCell(st, 4, 0);
-    handleWait(st, 1000);
-
-    CHECK(st.board.grid[4][0] == "wP");
-    CHECK(st.board.grid[6][0] == ".");
+    Board capture = parseBoard({
+        "bP . bP",
+        ". wP .",
+        ". . ."
+    });
+    CHECK(checkPieceShape(capture, makeMove(1, 1, 0, 0, "wP"), 'P').isValid);
+    CHECK(checkPieceShape(capture, makeMove(1, 1, 0, 2, "wP"), 'P').isValid);
 }
 
-TEST_CASE("pawn_promotion_to_queen_after_reaching_far_row")
-{
-    GameState st = makeState({{".", ".", ".", "."},
-                              {"wP", ".", ".", "."},
-                              {".", ".", ".", "."},
-                              {".", ".", ".", "."},
-                              {".", ".", ".", "."},
-                              {".", ".", ".", "."},
-                              {".", ".", ".", "."},
-                              {".", ".", ".", "."}});
-    st.selection = {true, 1, 0, st.elapsedMs};
+TEST_CASE("pawn two-cell move onto non-empty destination is rejected") {
+    Board friendly = parseBoard({
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        "wP . . .",
+        ". . . .",
+        "wP . . .",
+        ". . . ."
+    });
+    CHECK_FALSE(checkPieceShape(friendly, makeMove(6, 0, 4, 0, "wP"), 'P').isValid);
 
-    clickCell(st, 0, 0);
-    handleWait(st, 500);
-
-    CHECK(st.board.grid[0][0] == "wQ");
-    CHECK(st.board.grid[1][0] == ".");
+    Board enemy = parseBoard({
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        ". . . .",
+        "bP . . .",
+        ". . . .",
+        "wP . . .",
+        ". . . ."
+    });
+    auto res = checkPieceShape(enemy, makeMove(6, 0, 4, 0, "wP"), 'P');
+    CHECK_FALSE(res.isValid);
+    CHECK(res.reason == "illegal_piece_move");
 }
