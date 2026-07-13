@@ -17,6 +17,7 @@ add_executable(chess_game
     src/BoardPrinter.cpp
     src/GameEngine.cpp
     src/PieceRules.cpp
+    src/ScriptRunner.cpp
 )
 target_include_directories(chess_game PRIVATE src)
 
@@ -48,6 +49,7 @@ if(BUILD_TESTS)
         src/BoardPrinter.cpp
         src/GameEngine.cpp
         src/PieceRules.cpp
+        src/ScriptRunner.cpp
 
     )
     target_include_directories(chess_tests PRIVATE src third_party)

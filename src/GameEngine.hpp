@@ -55,7 +55,3 @@ private:
     RealTimeArbiter arbiter_;
 };
 
-// Still living here rather than in its own ScriptRunner - that split is
-// Stage 6, not part of this pass. Only change here: it now drives a
-// GameEngine instead of a raw GameState.
-void runCommands(const std::vector<std::string> &commands, GameEngine &engine);

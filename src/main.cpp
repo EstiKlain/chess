@@ -3,8 +3,8 @@
 
 #include "BoardParser.hpp"
 #include "GameEngine.hpp"
-// #include "config.hpp"
 #include "PieceRules.hpp"
+#include "ScriptRunner.hpp"
 
 int main()
 {

@@ -6,6 +6,8 @@
 #include "BoardPrinter.hpp"
 #include "config.hpp"
 #include "MoveRequest.hpp"
+#include "ScriptRunner.hpp"
+
 
 static pieceRules::PieceRulesRegistry registry;
 
