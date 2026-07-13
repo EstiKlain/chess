@@ -6,7 +6,7 @@
 #include "Board.hpp"
 #include "BoardMapper.hpp"
 #include "BoardParser.hpp"
-#include "Boardprinter.hpp"
+#include "BoardPrinter.hpp"
 #include "Controller.hpp"
 #include "GameOverRule.hpp"
 #include "MoveLegality.hpp"
@@ -46,7 +46,7 @@ MoveResult GameEngine::requestMove(const MoveRequest &request)
     const double dist = cellDistance(fromRow, fromCol, toRow, toCol);
     m.durationMs = (speed > 0.0) ? (long)(dist / speed * 1000.0) : 0;
 
-    const MoveLegality legality = isMoveLegal(board_, m, piece);
+    const MoveLegality legality = isMoveLegal(board_, m, piece, rules_);
     if (!legality.isValid)
         return {false, legality.reason};
 
@@ -88,7 +88,7 @@ void GameEngine::wait(long ms)
         return;
 
     elapsedMs_ += ms;
-    std::vector<std::string> captured = arbiter_.resolveMoves(board_, elapsedMs_);
+    std::vector<std::string> captured = arbiter_.resolveMoves(board_, elapsedMs_ , rules_);
     if (isGameOver(captured))
         gameOver_ = true;
 }

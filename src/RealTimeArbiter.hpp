@@ -5,6 +5,7 @@
 
 #include "Board.hpp"
 #include "Moves.hpp"
+#include "PieceRules.hpp"
 
 // Owns every motion/jump currently in progress. This is exactly the
 // data that used to live as GameState::activeMoves / activeJumps -
@@ -17,7 +18,7 @@ public:
     // up, and drops any jump that has landed. Mutates the board in place.
     // Returns the tokens captured this call (used by GameEngine to check
     // for a king capture / game over).
-    std::vector<std::string> resolveMoves(Board &board, long elapsedMs);
+    std::vector<std::string> resolveMoves(Board &board, long elapsedMs, const pieceRules::PieceRulesRegistry &registry);
 
     bool isPieceInFlight(int row, int col) const;
 

@@ -1,7 +1,7 @@
 #include "RuleEngine.hpp"
 #include "Movement.hpp"
 
-MoveLegality isMoveLegal(const Board &board, const PieceMove &move, char piece)
+MoveLegality isMoveLegal(const Board &board, const PieceMove &move, char piece, const pieceRules::PieceRulesRegistry &registry)
 {
     if (isEmpty(board.grid[move.fromRow][move.fromCol]))
     {
@@ -11,5 +11,5 @@ MoveLegality isMoveLegal(const Board &board, const PieceMove &move, char piece)
     {
         return {false, "outside_board"};
     }
-    return checkPieceShape(board, move, piece);
+    return checkPieceShape(board, move, piece, registry);
 }

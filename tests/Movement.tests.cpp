@@ -4,6 +4,7 @@
 #include "Board.hpp"
 #include "BoardParser.hpp"
 
+static pieceRules::PieceRulesRegistry registry;
 namespace {
     PieceMove makeMove(int fromRow, int fromCol, int toRow, int toCol, const std::string& piece) {
         PieceMove m;
@@ -29,19 +30,19 @@ TEST_CASE("cellDistance computes euclidean distance in cells") {
 
 TEST_CASE("isLegalMove: king moves one square in any direction") {
     Board b = parseBoard({"wK . .", ". . .", ". . ."});
-    CHECK(checkPieceShape(b, makeMove(0, 0, 1, 1, "wK"), 'K').isValid);
-    CHECK(checkPieceShape(b, makeMove(0, 0, 0, 1, "wK"), 'K').isValid);
-    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 2, 2, "wK"), 'K').isValid);
-    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 0, 0, "wK"), 'K').isValid);
+    CHECK(checkPieceShape(b, makeMove(0, 0, 1, 1, "wK"), 'K', registry).isValid);
+    CHECK(checkPieceShape(b, makeMove(0, 0, 0, 1, "wK"), 'K', registry).isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 2, 2, "wK"), 'K', registry).isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 0, 0, "wK"), 'K', registry).isValid);
 }
 
 TEST_CASE("isLegalMove: rook moves straight and needs a clear path") {
     Board clear = parseBoard({"wR . . .", ". . . .", ". . . .", ". . . ."});
-    CHECK(checkPieceShape(clear, makeMove(0, 0, 0, 3, "wR"), 'R').isValid);
-    CHECK_FALSE(checkPieceShape(clear, makeMove(0, 0, 1, 1, "wR"), 'R').isValid);
+    CHECK(checkPieceShape(clear, makeMove(0, 0, 0, 3, "wR"), 'R', registry).isValid);
+    CHECK_FALSE(checkPieceShape(clear, makeMove(0, 0, 1, 1, "wR"), 'R', registry).isValid);
 
     Board blocked = parseBoard({"wR wP . ."});
-    CHECK_FALSE(checkPieceShape(blocked, makeMove(0, 0, 0, 3, "wR"), 'R').isValid);
+    CHECK_FALSE(checkPieceShape(blocked, makeMove(0, 0, 0, 3, "wR"), 'R', registry).isValid);
 }
 
 TEST_CASE("isLegalMove: bishop moves diagonally and needs a clear path") {
@@ -51,8 +52,8 @@ TEST_CASE("isLegalMove: bishop moves diagonally and needs a clear path") {
         ". . . .",
         ". . . ."
     });
-    CHECK(checkPieceShape(clear, makeMove(0, 0, 3, 3, "wB"), 'B').isValid);
-    CHECK_FALSE(checkPieceShape(clear, makeMove(0, 0, 3, 2, "wB"), 'B').isValid);
+    CHECK(checkPieceShape(clear, makeMove(0, 0, 3, 3, "wB"), 'B', registry).isValid);
+    CHECK_FALSE(checkPieceShape(clear, makeMove(0, 0, 3, 2, "wB"), 'B' , registry).isValid);
 
     Board blocked = parseBoard({
         "wB . . .",
@@ -60,7 +61,7 @@ TEST_CASE("isLegalMove: bishop moves diagonally and needs a clear path") {
         ". . . .",
         ". . . ."
     });
-    CHECK_FALSE(checkPieceShape(blocked, makeMove(0, 0, 2, 2, "wB"), 'B').isValid);
+    CHECK_FALSE(checkPieceShape(blocked, makeMove(0, 0, 2, 2, "wB"), 'B', registry).isValid);
 }
 
 TEST_CASE("isLegalMove: queen moves like rook or bishop but not like a knight") {
@@ -70,9 +71,9 @@ TEST_CASE("isLegalMove: queen moves like rook or bishop but not like a knight") 
         ". . . .",
         ". . . ."
     });
-    CHECK(checkPieceShape(b, makeMove(0, 0, 0, 3, "wQ"), 'Q').isValid);
-    CHECK(checkPieceShape(b, makeMove(0, 0, 3, 3, "wQ"), 'Q').isValid);
-    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 1, 2, "wQ"), 'Q').isValid);
+    CHECK(checkPieceShape(b, makeMove(0, 0, 0, 3, "wQ"), 'Q', registry).isValid);
+    CHECK(checkPieceShape(b, makeMove(0, 0, 3, 3, "wQ"), 'Q', registry).isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 1, 2, "wQ"), 'Q', registry).isValid);
 }
 
 TEST_CASE("isLegalMove: knight moves in an L shape and ignores blockers") {
@@ -82,8 +83,8 @@ TEST_CASE("isLegalMove: knight moves in an L shape and ignores blockers") {
         ". . . .",
         ". . . ."
     });
-    CHECK(checkPieceShape(b, makeMove(0, 0, 2, 1, "wN"), 'N').isValid);
-    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 1, 1, "wN"), 'N').isValid);
+    CHECK(checkPieceShape(b, makeMove(0, 0, 2, 1, "wN"), 'N', registry).isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 1, 1, "wN"), 'N', registry).isValid);
 }
 
 TEST_CASE("isLegalMove: pawn advances straight only onto an empty square") {
@@ -92,9 +93,9 @@ TEST_CASE("isLegalMove: pawn advances straight only onto an empty square") {
         "wP . bP",
         ". . ."
     });
-    CHECK(checkPieceShape(b, makeMove(1, 0, 0, 0, "wP"), 'P').isValid);
-    CHECK_FALSE(checkPieceShape(b, makeMove(1, 0, 0, 1, "wP"), 'P').isValid);
-    CHECK_FALSE(checkPieceShape(b, makeMove(1, 2, 0, 2, "bP"), 'P').isValid);
+    CHECK(checkPieceShape(b, makeMove(1, 0, 0, 0, "wP"), 'P', registry).isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(1, 0, 0, 1, "wP"), 'P', registry).isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(1, 2, 0, 2, "bP"), 'P', registry).isValid);
 }
 
 TEST_CASE("isLegalMove: pawn captures diagonally only, never straight") {
@@ -103,48 +104,48 @@ TEST_CASE("isLegalMove: pawn captures diagonally only, never straight") {
         ". wP .",
         ". . ."
     });
-    CHECK(checkPieceShape(b, makeMove(1, 1, 0, 0, "wP"), 'P').isValid);
-    CHECK(checkPieceShape(b, makeMove(1, 1, 0, 2, "wP"), 'P').isValid);
+    CHECK(checkPieceShape(b, makeMove(1, 1, 0, 0, "wP"), 'P', registry).isValid);
+    CHECK(checkPieceShape(b, makeMove(1, 1, 0, 2, "wP"), 'P', registry).isValid);
 
     Board straightIntoEnemy = parseBoard({"bP", "wP"});
-    CHECK_FALSE(checkPieceShape(straightIntoEnemy, makeMove(1, 0, 0, 0, "wP"), 'P').isValid);
+    CHECK_FALSE(checkPieceShape(straightIntoEnemy, makeMove(1, 0, 0, 0, "wP"), 'P', registry).isValid);
 }
 
 TEST_CASE("isLegalMove: a piece may never capture its own color") {
     Board b = parseBoard({"wR wP . ."});
-    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 0, 1, "wR"), 'R').isValid);
+    CHECK_FALSE(checkPieceShape(b, makeMove(0, 0, 0, 1, "wR"), 'R', registry).isValid);
 }
 
 TEST_CASE("isLegalMove: pieces with no registered shape are unrestricted") {
     Board b = parseBoard({"wX . . .", ". . . .", ". . . .", ". . . ."});
-    CHECK(checkPieceShape(b, makeMove(0, 0, 3, 1, "wX"), 'X').isValid);
+    CHECK(checkPieceShape(b, makeMove(0, 0, 3, 1, "wX"), 'X', registry).isValid);
 }
 
 TEST_CASE("isLegalMove reasons") {
     SUBCASE("friendly_destination") {
         Board b = parseBoard({"wR wP . ."});
-        auto res = checkPieceShape(b, makeMove(0, 0, 0, 1, "wR"), 'R');
+        auto res = checkPieceShape(b, makeMove(0, 0, 0, 1, "wR"), 'R', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "friendly_destination");
     }
 
     SUBCASE("illegal_piece_move") {
         Board b = parseBoard({"wR . . .", ". . . ."});
-        auto res = checkPieceShape(b, makeMove(0, 0, 1, 1, "wR"), 'R');
+        auto res = checkPieceShape(b, makeMove(0, 0, 1, 1, "wR"), 'R', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "illegal_piece_move");
     }
 
     SUBCASE("blocked_path") {
         Board b = parseBoard({"wR wP . ."});
-        auto res = checkPieceShape(b, makeMove(0, 0, 0, 2, "wR"), 'R');
+        auto res = checkPieceShape(b, makeMove(0, 0, 0, 2, "wR"), 'R', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "blocked_path");
     }
 
     SUBCASE("legal") {
         Board b = parseBoard({"wR . . .", ". . . ."});
-        auto res = checkPieceShape(b, makeMove(0, 0, 0, 3, "wR"), 'R');
+        auto res = checkPieceShape(b, makeMove(0, 0, 0, 3, "wR"), 'R', registry);
         CHECK(res.isValid);
         CHECK(res.reason == "legal");
     }
@@ -161,7 +162,7 @@ TEST_CASE("pawn on start row with clear path may double-step forward") {
         "wP . . .",
         ". . . ."
     });
-    CHECK(checkPieceShape(b, makeMove(6, 0, 4, 0, "wP"), 'P').isValid);
+    CHECK(checkPieceShape(b, makeMove(6, 0, 4, 0, "wP"), 'P', registry).isValid);
 }
 
 TEST_CASE("pawn double-step blocked when intermediate cell is occupied") {
@@ -175,7 +176,7 @@ TEST_CASE("pawn double-step blocked when intermediate cell is occupied") {
         "wP . . .",
         ". . . ."
     });
-    auto res = checkPieceShape(b, makeMove(6, 0, 4, 0, "wP"), 'P');
+    auto res = checkPieceShape(b, makeMove(6, 0, 4, 0, "wP"), 'P', registry);
     CHECK_FALSE(res.isValid);
     CHECK(res.reason == "pawn_double_step_blocked");
 }
@@ -191,7 +192,7 @@ TEST_CASE("pawn double-step rejected when not on canonical start row") {
         ". . . .",
         ". . . ."
     });
-    auto res = checkPieceShape(b, makeMove(5, 0, 3, 0, "wP"), 'P');
+    auto res = checkPieceShape(b, makeMove(5, 0, 3, 0, "wP"), 'P', registry);
     CHECK_FALSE(res.isValid);
     CHECK(res.reason == "pawn_double_step_blocked");
 }
@@ -202,15 +203,15 @@ TEST_CASE("pawn one-cell forward and diagonal capture still work with contextGat
         "wP . .",
         ". . ."
     });
-    CHECK(checkPieceShape(forward, makeMove(1, 0, 0, 0, "wP"), 'P').isValid);
+    CHECK(checkPieceShape(forward, makeMove(1, 0, 0, 0, "wP"), 'P', registry).isValid);
 
     Board capture = parseBoard({
         "bP . bP",
         ". wP .",
         ". . ."
     });
-    CHECK(checkPieceShape(capture, makeMove(1, 1, 0, 0, "wP"), 'P').isValid);
-    CHECK(checkPieceShape(capture, makeMove(1, 1, 0, 2, "wP"), 'P').isValid);
+    CHECK(checkPieceShape(capture, makeMove(1, 1, 0, 0, "wP"), 'P', registry).isValid);
+    CHECK(checkPieceShape(capture, makeMove(1, 1, 0, 2, "wP"), 'P', registry).isValid);
 }
 
 TEST_CASE("pawn two-cell move onto non-empty destination is rejected") {
@@ -224,7 +225,7 @@ TEST_CASE("pawn two-cell move onto non-empty destination is rejected") {
         "wP . . .",
         ". . . ."
     });
-    CHECK_FALSE(checkPieceShape(friendly, makeMove(6, 0, 4, 0, "wP"), 'P').isValid);
+    CHECK_FALSE(checkPieceShape(friendly, makeMove(6, 0, 4, 0, "wP"), 'P', registry).isValid);
 
     Board enemy = parseBoard({
         ". . . .",
@@ -236,7 +237,7 @@ TEST_CASE("pawn two-cell move onto non-empty destination is rejected") {
         "wP . . .",
         ". . . ."
     });
-    auto res = checkPieceShape(enemy, makeMove(6, 0, 4, 0, "wP"), 'P');
+    auto res = checkPieceShape(enemy, makeMove(6, 0, 4, 0, "wP"), 'P', registry);
     CHECK_FALSE(res.isValid);
     CHECK(res.reason == "illegal_piece_move");
 }

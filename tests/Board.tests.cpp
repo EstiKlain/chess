@@ -3,7 +3,6 @@
 #include "Board.hpp"
 #include "BoardParser.hpp"
 #include "BoardPrinter.hpp"
-#include "Movement.hpp"
 
 TEST_CASE("trim removes leading and trailing whitespace") {
     CHECK(trim("  hello  ") == "hello");
@@ -146,35 +145,4 @@ TEST_CASE("isEmpty/colorOf/pieceOf read a single token") {
     CHECK(colorOf("bQ") == 'b');
     CHECK(pieceOf("wK") == 'K');
     CHECK(pieceOf("bP") == 'P');
-}
-
-TEST_CASE("sign returns -1, 0 or 1") {
-    CHECK(sign(5) == 1);
-    CHECK(sign(-5) == -1);
-    CHECK(sign(0) == 0);
-}
-
-TEST_CASE("isPathClear allows adjacent squares with nothing in between") {
-    Board b = parseBoard({"wK .", ". bK"});
-    CHECK(isPathClear(b, 0, 0, 1, 1));
-}
-
-TEST_CASE("isPathClear returns true when all intermediate squares are empty") {
-    Board b = parseBoard({"wR . . bR"});
-    CHECK(isPathClear(b, 0, 0, 0, 3));
-}
-
-TEST_CASE("isPathClear returns false when a piece blocks the path") {
-    Board b = parseBoard({"wR . wP bR"});
-    CHECK_FALSE(isPathClear(b, 0, 0, 0, 3));
-}
-
-TEST_CASE("isPathClear works along diagonals") {
-    Board b = parseBoard({
-        "wB . . .",
-        ". . . .",
-        ". . bP .",
-        ". . . bB"
-    });
-    CHECK_FALSE(isPathClear(b, 0, 0, 3, 3));
 }

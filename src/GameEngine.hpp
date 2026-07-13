@@ -6,6 +6,7 @@
 #include "Board.hpp"
 #include "MoveRequest.hpp"
 #include "RealTimeArbiter.hpp"
+#include "PieceRules.hpp"
 
 // Result of a move/jump request - always carries a reason, even on
 // success ("legal") - so there is no more silent `return;` anywhere
@@ -29,7 +30,8 @@ struct JumpResult
 class GameEngine
 {
 public:
-    explicit GameEngine(Board board) : board_(std::move(board)) {}
+    GameEngine(Board board, pieceRules::PieceRulesRegistry rules)
+        : board_(std::move(board)), rules_(std::move(rules)) {}
 
     // Fixed check order (agreed on beforehand): game_over -> motion_in_progress
     // -> RuleEngine -> startMotion. Always returns a MoveResult.
@@ -47,6 +49,7 @@ public:
 
 private:
     Board board_;
+    pieceRules::PieceRulesRegistry rules_;
     bool gameOver_ = false;
     long elapsedMs_ = 0;
     RealTimeArbiter arbiter_;

@@ -3,6 +3,10 @@
 #include "RealTimeArbiter.hpp"
 #include "Board.hpp"
 
+
+static pieceRules::PieceRulesRegistry registry;
+
+
 namespace
 {
     Board makeBoard(std::initializer_list<std::initializer_list<std::string>> rows)
@@ -74,7 +78,7 @@ TEST_CASE("resolveMoves lands the piece at destination when duration expires")
 
     // נקבע שהזמן הנוכחי הוא 600ms (עבר את ה-500ms של משך התנועה)
     // Act
-    arbiter.resolveMoves(b, 600);
+    arbiter.resolveMoves(b, 600 , registry);
 
     // Assert: המהלך היה צריך להסתיים
     CHECK_FALSE(arbiter.hasActiveMotion()); // תור התנועות התרוקן
@@ -95,7 +99,7 @@ TEST_CASE("white pawn promoted to queen on arrival at row 0")
     m.piece = "wP";
     arbiter.startMotion(m);
 
-    arbiter.resolveMoves(b, 500);
+    arbiter.resolveMoves(b, 500, registry);
 
     CHECK(b.grid[0][0] == "wQ");
 }
@@ -114,7 +118,7 @@ TEST_CASE("black pawn promoted to queen on arrival at last row")
     m.piece = "bP";
     arbiter.startMotion(m);
 
-    arbiter.resolveMoves(b, 500);
+    arbiter.resolveMoves(b, 500, registry);
 
     CHECK(b.grid[7][0] == "bQ");
 }
@@ -142,7 +146,7 @@ TEST_CASE("pawn arriving at non-promotion row remains a pawn")
     m.piece = "wP";
     arbiter.startMotion(m);
 
-    arbiter.resolveMoves(b, 500);
+    arbiter.resolveMoves(b, 500, registry);
 
     CHECK(b.grid[5][0] == "wP");
 }
@@ -161,7 +165,7 @@ TEST_CASE("non-pawn piece is never modified by promotion check")
     m.piece = "wR";
     arbiter.startMotion(m);
 
-    arbiter.resolveMoves(b, 500);
+    arbiter.resolveMoves(b, 500, registry);
 
     CHECK(b.grid[0][0] == "wR");
 }
@@ -180,7 +184,7 @@ TEST_CASE("pawn promotion applies when arrival is a capture")
     m.piece = "wP";
     arbiter.startMotion(m);
 
-    std::vector<std::string> captured = arbiter.resolveMoves(b, 500);
+    std::vector<std::string> captured = arbiter.resolveMoves(b, 500, registry);
 
     CHECK(captured.size() == 1);
     CHECK(captured[0] == "bK");

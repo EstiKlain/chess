@@ -16,6 +16,7 @@ add_executable(chess_game
     src/BoardParser.cpp
     src/BoardPrinter.cpp
     src/GameEngine.cpp
+    src/PieceRules.cpp
 )
 target_include_directories(chess_game PRIVATE src)
 
@@ -35,6 +36,7 @@ if(BUILD_TESTS)
         tests/RealTimeArbiter.tests.cpp
         tests/RuleEngine.tests.cpp
         tests/GameOverRule.tests.cpp
+        tests/PieceRules.tests.cpp
         src/Board.cpp
         src/Movement.cpp
         src/Controller.cpp
@@ -45,6 +47,8 @@ if(BUILD_TESTS)
         src/BoardParser.cpp
         src/BoardPrinter.cpp
         src/GameEngine.cpp
+        src/PieceRules.cpp
+
     )
     target_include_directories(chess_tests PRIVATE src third_party)
 

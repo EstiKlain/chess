@@ -4,6 +4,7 @@
 #include "Board.hpp"
 #include "BoardParser.hpp"
 
+static pieceRules::PieceRulesRegistry registry;
 TEST_CASE("isMoveLegal delegates legal rook moves")
 {
     Board b;
@@ -15,7 +16,7 @@ TEST_CASE("isMoveLegal delegates legal rook moves")
     move.toCol = 2;
     move.piece = "wR";
 
-    CHECK(isMoveLegal(b, move, 'R').isValid);
+    CHECK(isMoveLegal(b, move, 'R', registry).isValid);
 }
 
 TEST_CASE("isMoveLegal rejects empty source before shape checks")
@@ -29,7 +30,7 @@ TEST_CASE("isMoveLegal rejects empty source before shape checks")
     move.toCol = 2;
     move.piece = ".";
 
-    const auto res = isMoveLegal(b, move, 'R');
+    const auto res = isMoveLegal(b, move, 'R', registry);
     CHECK_FALSE(res.isValid);
     CHECK(res.reason == "empty_source");
 }
@@ -45,7 +46,7 @@ TEST_CASE("isMoveLegal rejects bishop-shaped rook move")
     move.toCol = 1;
     move.piece = "wR";
 
-    CHECK_FALSE(isMoveLegal(b, move, 'R').isValid);
+    CHECK_FALSE(isMoveLegal(b, move, 'R', registry ).isValid);
 }
 
 TEST_CASE("isMoveLegal bounds checking")
@@ -59,7 +60,7 @@ TEST_CASE("isMoveLegal bounds checking")
     SUBCASE("outside_board - toRow too high") {
         move.toRow = 2;
         move.toCol = 0;
-        auto res = isMoveLegal(b, move, 'K');
+        auto res = isMoveLegal(b, move, 'K', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "outside_board");
     }
@@ -67,7 +68,7 @@ TEST_CASE("isMoveLegal bounds checking")
     SUBCASE("outside_board - toRow too low") {
         move.toRow = -1;
         move.toCol = 0;
-        auto res = isMoveLegal(b, move, 'K');
+        auto res = isMoveLegal(b, move, 'K', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "outside_board");
     }
@@ -75,7 +76,7 @@ TEST_CASE("isMoveLegal bounds checking")
     SUBCASE("outside_board - toCol too high") {
         move.toRow = 0;
         move.toCol = 2;
-        auto res = isMoveLegal(b, move, 'K');
+        auto res = isMoveLegal(b, move, 'K', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "outside_board");
     }
@@ -83,7 +84,7 @@ TEST_CASE("isMoveLegal bounds checking")
     SUBCASE("outside_board - toCol too low") {
         move.toRow = 0;
         move.toCol = -1;
-        auto res = isMoveLegal(b, move, 'K');
+        auto res = isMoveLegal(b, move, 'K', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "outside_board");
     }
@@ -93,7 +94,7 @@ TEST_CASE("isMoveLegal bounds checking")
         move.toCol = 1; // Diagonal move for King is legal, so let's try something illegal
         // Wait, king diagonal IS legal. Let's use a Rook.
         move.piece = "wR";
-        auto res = isMoveLegal(b, move, 'R');
+        auto res = isMoveLegal(b, move, 'R', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "illegal_piece_move");
     }

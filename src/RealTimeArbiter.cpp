@@ -4,9 +4,9 @@
 
 #include "Board.hpp"
 #include "Movement.hpp"
-#include "config.hpp"
+#include "PieceRules.hpp"
 
-std::vector<std::string> RealTimeArbiter::resolveMoves(Board &board, long elapsedMs)
+std::vector<std::string> RealTimeArbiter::resolveMoves(Board &board, long elapsedMs, const pieceRules::PieceRulesRegistry &registry)
 {
     std::vector<std::string> captured;
     std::vector<size_t> due;
@@ -60,14 +60,14 @@ std::vector<std::string> RealTimeArbiter::resolveMoves(Board &board, long elapse
         {
             captured.push_back(target);
             target = m.piece;
-            if (pieceOf(m.piece) == 'P' && m.toRow == config::pawnPromotionRow(colorOf(m.piece), board.rows()))
+            if (pieceOf(m.piece) == 'P' && m.toRow == registry.pawnPromotionRow(colorOf(m.piece), board.rows()))
                 target[1] = 'Q';
             origin = ".";
         }
         else if (isEmpty(target))
         {
             target = m.piece;
-            if (pieceOf(m.piece) == 'P' && m.toRow == config::pawnPromotionRow(colorOf(m.piece), board.rows()))
+            if (pieceOf(m.piece) == 'P' && m.toRow == registry.pawnPromotionRow(colorOf(m.piece), board.rows()))
                 target[1] = 'Q';
             origin = ".";
         }
