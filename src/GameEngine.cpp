@@ -41,7 +41,7 @@ MoveResult GameEngine::requestMove(const MoveRequest &request)
     m.startMs = elapsedMs_;
     m.piece = selected;
 
-    const char piece = pieceOf(selected);
+    const char piece = isEmpty(selected) ? '\0' : pieceOf(selected);
     const double speed = config::statsFor(piece).speedCellsPerSec;
     const double dist = cellDistance(fromRow, fromCol, toRow, toCol);
     m.durationMs = (speed > 0.0) ? (long)(dist / speed * 1000.0) : 0;

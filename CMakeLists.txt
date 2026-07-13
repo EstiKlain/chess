@@ -29,7 +29,7 @@ if(BUILD_TESTS)
         tests/Config.tests.cpp
         tests/Board.tests.cpp
         tests/Movement.tests.cpp
-        tests/Engine.tests.cpp
+        tests/GameEngine.tests.cpp
         tests/Controller.tests.cpp
         tests/BoardMapper.tests.cpp
         tests/RealTimeArbiter.tests.cpp
