@@ -9,6 +9,7 @@ set(OpenCV_ROOT "${CMAKE_SOURCE_DIR}/OpenCV_451")
 set(OpenCV_INCLUDE_DIRS "${OpenCV_ROOT}/include")
 set(OpenCV_LIB_DIR "${OpenCV_ROOT}/bin")
 
+# --- chess_game: your existing text-mode engine, UNCHANGED ----------------
 add_executable(chess_game
     src/main.cpp
     src/model/Board.cpp
@@ -32,11 +33,33 @@ target_link_libraries(chess_game PRIVATE
     optimized opencv_world451
 )
 
-# Copy the correct OpenCV DLL next to the exe after build
 add_custom_command(TARGET chess_game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "$<IF:$<CONFIG:Debug>,${OpenCV_LIB_DIR}/opencv_world451d.dll,${OpenCV_LIB_DIR}/opencv_world451.dll>"
         "$<TARGET_FILE_DIR:chess_game>"
+)
+
+# --- chess_gui: NEW - UI-Iteration A window, no engine wired in yet -------
+# Deliberately does NOT link model/rules/engine sources: Iteration A draws
+# an empty checkerboard only, it doesn't touch GameEngine/Controller at all.
+# Those get added to this same target's source list starting Iteration D.
+add_executable(chess_gui
+    src/app/main_gui.cpp
+    src/img.cpp
+    src/view/canvas/ImgCanvas.cpp
+    src/view/render/BoardGeometry.cpp
+)
+target_include_directories(chess_gui PRIVATE src ${OpenCV_INCLUDE_DIRS})
+target_link_directories(chess_gui PRIVATE ${OpenCV_LIB_DIR})
+target_link_libraries(chess_gui PRIVATE
+    debug opencv_world451d
+    optimized opencv_world451
+)
+
+add_custom_command(TARGET chess_gui POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<IF:$<CONFIG:Debug>,${OpenCV_LIB_DIR}/opencv_world451d.dll,${OpenCV_LIB_DIR}/opencv_world451.dll>"
+        "$<TARGET_FILE_DIR:chess_gui>"
 )
 
 option(BUILD_TESTS "Build the doctest test suite" ON)
@@ -56,6 +79,7 @@ if(BUILD_TESTS)
         tests/RuleEngine.tests.cpp
         tests/GameOverRule.tests.cpp
         tests/PieceRules.tests.cpp
+        tests/BoardGeometry.tests.cpp
         src/model/Board.cpp
         src/Movement.cpp
         src/Controller.cpp
@@ -69,6 +93,7 @@ if(BUILD_TESTS)
         src/PieceRules.cpp
         src/ScriptRunner.cpp
         src/img.cpp
+        src/view/render/BoardGeometry.cpp
     )
     target_include_directories(chess_tests PRIVATE src third_party ${OpenCV_INCLUDE_DIRS})
     target_link_directories(chess_tests PRIVATE ${OpenCV_LIB_DIR})
