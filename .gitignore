@@ -37,6 +37,8 @@ Makefile
 *.tlog
 *.idb
 
+*.zip
+
 # ===== Debug/Release folders (if not inside build/) =====
 Debug/
 Release/
@@ -47,3 +49,5 @@ x86/
 .vscode/
 .DS_Store
 Thumbs.db
+
+OpenCV_451/

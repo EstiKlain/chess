@@ -74,6 +74,8 @@ std::vector<Piece> RealTimeArbiter::resolveMoves(Board &board, long elapsedMs, c
             board.movePiece(mover->id, destinationCell);
             if (Piece *freshMover = board.pieceById(moverId))
             {
+                // TODO
+                // הכתרה של חייל למלכה לא אמורה להיות בזמן אמת !
                 freshMover->state = PieceState::Idle;
                 if (freshMover->kind == 'P' && m.toRow == registry.pawnPromotionRow(freshMover->color, board.rows()))
                     freshMover->kind = 'Q'; // שימוש ב-freshMover המעודכן מהלוח!
