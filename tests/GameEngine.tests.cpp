@@ -2,7 +2,8 @@
 
 #include "GameEngine.hpp"
 #include "Controller.hpp"
-#include "Board.hpp"
+#include "model/Board.hpp"
+#include "BoardParser.hpp"
 #include "BoardPrinter.hpp"
 #include "config.hpp"
 #include "MoveRequest.hpp"
@@ -15,10 +16,19 @@ namespace
 {
     Board makeBoard(std::initializer_list<std::initializer_list<std::string>> rows)
     {
-        Board b;
+        RawBoard raw;
         for (const auto &row : rows)
-            b.grid.push_back(std::vector<std::string>(row.begin(), row.end()));
-        return b;
+            raw.push_back(std::vector<std::string>(row.begin(), row.end()));
+        return buildBoard(raw);
+    }
+
+    // Local helper: reads back a single cell as a "colorkind" token (or
+    // ".") purely for test assertions - Board itself has no such concept.
+    std::string tokenAt(const Board &b, int row, int col)
+    {
+        const Piece *p = b.pieceAt(Position{row, col});
+        if (!p) return ".";
+        return std::string(1, p->color) + std::string(1, p->kind);
     }
 
     void clickCell(Controller &controller, int row, int col)
@@ -39,8 +49,8 @@ TEST_CASE("basic_move_reaches_destination_and_origin_clears")
 
     engine.wait(3000);
 
-    CHECK(engine.board().grid[0][3] == "wR");
-    CHECK(engine.board().grid[0][0] == ".");
+    CHECK(tokenAt(engine.board(), 0, 3) == "wR");
+    CHECK(tokenAt(engine.board(), 0, 0) == ".");
 }
 
 TEST_CASE("second_move_is_rejected_while_global_route_is_busy_same_color")
@@ -55,8 +65,8 @@ TEST_CASE("second_move_is_rejected_while_global_route_is_busy_same_color")
 
     CHECK_FALSE(second.accepted);
     CHECK(second.reason == "motion_in_progress");
-    CHECK(engine.board().grid[1][0] == "wP");
-    CHECK(engine.board().grid[1][2] == ".");
+    CHECK(tokenAt(engine.board(), 1, 0) == "wP");
+    CHECK(tokenAt(engine.board(), 1, 2) == ".");
 }
 
 TEST_CASE("second_move_is_rejected_while_global_route_is_busy_opposite_color")
@@ -72,8 +82,8 @@ TEST_CASE("second_move_is_rejected_while_global_route_is_busy_opposite_color")
 
     CHECK_FALSE(blackAttempt.accepted);
     CHECK(blackAttempt.reason == "motion_in_progress");
-    CHECK(engine.board().grid[1][0] == "bB");
-    CHECK(engine.board().grid[1][2] == ".");
+    CHECK(tokenAt(engine.board(), 1, 0) == "bB");
+    CHECK(tokenAt(engine.board(), 1, 2) == ".");
 }
 
 TEST_CASE("move_resolves_at_exact_boundary_in_common_route")
@@ -84,10 +94,10 @@ TEST_CASE("move_resolves_at_exact_boundary_in_common_route")
     REQUIRE(engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 3}}).accepted);
 
     engine.wait(2999);
-    CHECK(engine.board().grid[0][3] == ".");
+    CHECK(tokenAt(engine.board(), 0, 3) == ".");
 
     engine.wait(1);
-    CHECK(engine.board().grid[0][3] == "wR");
+    CHECK(tokenAt(engine.board(), 0, 3) == "wR");
 }
 
 TEST_CASE("can_move_again_immediately_after_arrival_with_no_cooldown")
@@ -102,8 +112,8 @@ TEST_CASE("can_move_again_immediately_after_arrival_with_no_cooldown")
 
     CHECK(second.accepted);
     engine.wait(3000);
-    CHECK(engine.board().grid[0][0] == "wR");
-    CHECK(engine.board().grid[0][3] == ".");
+    CHECK(tokenAt(engine.board(), 0, 0) == "wR");
+    CHECK(tokenAt(engine.board(), 0, 3) == ".");
 }
 
 TEST_CASE("second_move_to_same_destination_is_rejected_while_first_still_in_flight")
@@ -117,7 +127,7 @@ TEST_CASE("second_move_to_same_destination_is_rejected_while_first_still_in_flig
 
     CHECK_FALSE(second.accepted);
     CHECK(second.reason == "motion_in_progress");
-    CHECK(engine.board().grid[0][0] == "wR");
+    CHECK(tokenAt(engine.board(), 0, 0) == "wR");
 }
 
 TEST_CASE("illegal_move_attempt_leaves_no_phantom_motion")
@@ -127,7 +137,7 @@ TEST_CASE("illegal_move_attempt_leaves_no_phantom_motion")
     GameEngine engine(makeBoard({{"wR", ".", "wP"}}), registry);
     MoveResult illegal = engine.requestMove(MoveRequest{Position{0, 0}, Position{1, 1}});
     CHECK_FALSE(illegal.accepted);
-    CHECK(engine.board().grid[0][0] == "wR");
+    CHECK(tokenAt(engine.board(), 0, 0) == "wR");
 
     // If the illegal attempt had registered a phantom motion, this would
     // now be rejected with "motion_in_progress" instead of succeeding.
@@ -144,11 +154,11 @@ TEST_CASE("capture_is_accepted_immediately_but_only_applied_on_arrival")
     MoveResult result = engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 2}});
 
     CHECK(result.accepted);
-    CHECK(engine.board().grid[0][0] == "wR"); // still at origin, mid-flight
-    CHECK(engine.board().grid[0][2] == "bP"); // target not yet captured
+    CHECK(tokenAt(engine.board(), 0, 0) == "wR"); // still at origin, mid-flight
+    CHECK(tokenAt(engine.board(), 0, 2) == "bP"); // target not yet captured
 
     engine.wait(2000);
-    CHECK(engine.board().grid[0][2] == "wR"); // capture applied on arrival
+    CHECK(tokenAt(engine.board(), 0, 2) == "wR"); // capture applied on arrival
 }
 
 TEST_CASE("handle_wait_accumulates_elapsed_time_to_resolve_late_move")
@@ -161,10 +171,10 @@ TEST_CASE("handle_wait_accumulates_elapsed_time_to_resolve_late_move")
     engine.wait(200);
     engine.wait(200);
     engine.wait(200);
-    CHECK(engine.board().grid[0][3] == ".");
+    CHECK(tokenAt(engine.board(), 0, 3) == ".");
 
     engine.wait(2400);
-    CHECK(engine.board().grid[0][3] == "wR");
+    CHECK(tokenAt(engine.board(), 0, 3) == "wR");
 }
 
 TEST_CASE("capturing_king_ends_game_and_blocks_further_moves")
@@ -176,12 +186,12 @@ TEST_CASE("capturing_king_ends_game_and_blocks_further_moves")
     engine.wait(2000);
 
     CHECK(engine.gameOver());
-    CHECK(engine.board().grid[0][2] == "wR");
+    CHECK(tokenAt(engine.board(), 0, 2) == "wR");
 
     MoveResult afterGameOver = engine.requestMove(MoveRequest{Position{0, 2}, Position{0, 1}});
     CHECK_FALSE(afterGameOver.accepted);
     CHECK(afterGameOver.reason == "game_over");
-    CHECK(engine.board().grid[0][2] == "wR");
+    CHECK(tokenAt(engine.board(), 0, 2) == "wR");
 }
 
 TEST_CASE("request_move_from_empty_cell_is_rejected")
@@ -223,8 +233,8 @@ TEST_CASE("print_board_mid_flight_still_shows_piece_at_origin")
 
     engine.wait(500); // still mid-flight
 
-    CHECK(engine.board().grid[0][0] == "wR");
-    CHECK(engine.board().grid[0][3] == ".");
+    CHECK(tokenAt(engine.board(), 0, 0) == "wR");
+    CHECK(tokenAt(engine.board(), 0, 3) == ".");
 }
 
 TEST_CASE("pawn_double_step_reaches_destination_after_wait")
@@ -241,8 +251,8 @@ TEST_CASE("pawn_double_step_reaches_destination_after_wait")
     REQUIRE(engine.requestMove(MoveRequest{Position{6, 0}, Position{4, 0}}).accepted);
     engine.wait(1000);
 
-    CHECK(engine.board().grid[4][0] == "wP");
-    CHECK(engine.board().grid[6][0] == ".");
+    CHECK(tokenAt(engine.board(), 4, 0) == "wP");
+    CHECK(tokenAt(engine.board(), 6, 0) == ".");
 }
 
 TEST_CASE("pawn_promotion_to_queen_after_reaching_far_row")
@@ -259,6 +269,81 @@ TEST_CASE("pawn_promotion_to_queen_after_reaching_far_row")
     REQUIRE(engine.requestMove(MoveRequest{Position{1, 0}, Position{0, 0}}).accepted);
     engine.wait(500);
 
-    CHECK(engine.board().grid[0][0] == "wQ");
-    CHECK(engine.board().grid[1][0] == ".");
+    CHECK(tokenAt(engine.board(), 0, 0) == "wQ");
+    CHECK(tokenAt(engine.board(), 1, 0) == ".");
+}
+TEST_CASE("jump_from_empty_cell_is_rejected")
+{
+    // Locks: requestJump follows the same empty_source guard as requestMove.
+    GameEngine engine(makeBoard({{".", ".", "."}}), registry);
+    JumpResult result = engine.requestJump(0, 1);
+    CHECK_FALSE(result.accepted);
+    CHECK(result.reason == "empty_source");
+}
+
+TEST_CASE("jump_outside_board_is_rejected")
+{
+    GameEngine engine(makeBoard({{"wR", "."}}), registry);
+    JumpResult result = engine.requestJump(5, 5);
+    CHECK_FALSE(result.accepted);
+    CHECK(result.reason == "outside_board");
+}
+
+TEST_CASE("jump_after_game_over_is_rejected")
+{
+    // Locks: game_over is checked before anything else, exactly as for requestMove.
+    GameEngine engine(makeBoard({{"wR", ".", "bK"}}), registry);
+    REQUIRE(engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 2}}).accepted);
+    engine.wait(2000);
+    REQUIRE(engine.gameOver());
+
+    JumpResult result = engine.requestJump(0, 2);
+    CHECK_FALSE(result.accepted);
+    CHECK(result.reason == "game_over");
+}
+
+TEST_CASE("a_piece_already_moving_cannot_jump")
+{
+    // Locks the spec line: "A moving piece cannot jump."
+    GameEngine engine(makeBoard({{"wR", ".", ".", "."}}), registry);
+    REQUIRE(engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 3}}).accepted);
+
+    JumpResult result = engine.requestJump(0, 0);
+    CHECK_FALSE(result.accepted);
+    CHECK(result.reason == "motion_in_progress");
+}
+
+TEST_CASE("a_piece_already_jumping_cannot_start_a_second_jump")
+{
+    GameEngine engine(makeBoard({{"wR", ".", "."}}), registry);
+    REQUIRE(engine.requestJump(0, 0).accepted);
+
+    JumpResult second = engine.requestJump(0, 0);
+    CHECK_FALSE(second.accepted);
+    CHECK(second.reason == "jump_in_progress");
+}
+
+TEST_CASE("a_legal_jump_is_accepted")
+{
+    GameEngine engine(makeBoard({{"wR", ".", "."}}), registry);
+    JumpResult result = engine.requestJump(0, 0);
+    CHECK(result.accepted);
+    CHECK(result.reason == "legal");
+}
+
+TEST_CASE("a_king_that_jumps_survives_an_incoming_capture_attempt_during_the_jump_window")
+{
+    // Full integration proof of the defense mechanic through the public
+    // gate: an enemy rook arrives at the airborne king's cell exactly at
+    // the jump's boundary (both durations are 1000ms) - the king must
+    // survive and the game must NOT be over.
+    GameEngine engine(makeBoard({{"bK", "wR"}}), registry);
+    REQUIRE(engine.requestJump(0, 0).accepted);
+    REQUIRE(engine.requestMove(MoveRequest{Position{0, 1}, Position{0, 0}}).accepted);
+
+    engine.wait(1000);
+
+    CHECK_FALSE(engine.gameOver());
+    CHECK(tokenAt(engine.board(), 0, 0) == "bK");
+    CHECK(tokenAt(engine.board(), 0, 1) == ".");
 }

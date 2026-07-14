@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Position.hpp"
+#include "model/Position.hpp"
 
 struct MoveRequest
 {

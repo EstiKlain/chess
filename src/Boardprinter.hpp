@@ -2,6 +2,6 @@
 
 #include <string>
 
-#include "Board.hpp"
+#include "model/Board.hpp"
 
 std::string formatBoard(const Board& b);

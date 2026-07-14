@@ -63,7 +63,7 @@ namespace pieceRules
         int r = fromRow + stepRow, c = fromCol + stepCol;
         while (r != toRow || c != toCol)
         {
-            if (!isEmpty(board.grid[r][c]))
+            if (board.pieceAt(Position{r, c}) != nullptr)
                 return false;
             r += stepRow;
             c += stepCol;

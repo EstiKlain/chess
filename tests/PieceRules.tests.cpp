@@ -1,7 +1,14 @@
 #include "doctest.h"
 #include "PieceRules.hpp"
-#include "Board.hpp"
+#include "model/Board.hpp"
 #include "BoardParser.hpp"
+
+namespace {
+    Board parseBoard(const std::vector<std::string>& lines) {
+        RawBoard raw = parseRawGrid(lines);
+        return buildBoard(raw);
+    }
+}
 
 TEST_CASE("shape helpers classify king moves") {
     CHECK(pieceRules::kingShape(1, 0, 'w'));
@@ -102,4 +109,32 @@ TEST_CASE("isPathClear works along diagonals") {
         ". . . bB"
     });
     CHECK_FALSE(pieceRules::isPathClear(b, 0, 0, 3, 3));
+}
+TEST_CASE("pawnContextGate allows any single-step move without checking path") {
+    Board b = parseBoard({". . .", ". . .", ". wP ."});
+    CHECK(pieceRules::pawnContextGate(b, 2, 1, 1, 1, 'w'));
+}
+
+TEST_CASE("pawnContextGate allows a clear double step from the pawn start row") {
+    Board b = parseBoard({
+        ". . .", ". . .", ". . .", ". . .",
+        ". . .", ". . .", ". wP .", ". . ."
+    });
+    CHECK(pieceRules::pawnContextGate(b, 6, 1, 4, 1, 'w'));
+}
+
+TEST_CASE("pawnContextGate rejects a double step when the path is blocked") {
+    Board b = parseBoard({
+        ". . .", ". . .", ". . .", ". . .",
+        ". . .", ". wN .", ". wP .", ". . ."
+    });
+    CHECK_FALSE(pieceRules::pawnContextGate(b, 6, 1, 4, 1, 'w'));
+}
+
+TEST_CASE("pawnContextGate rejects a double step from a non-start row") {
+    Board b = parseBoard({
+        ". . .", ". . .", ". . .", ". wP .",
+        ". . .", ". . .", ". . .", ". . ."
+    });
+    CHECK_FALSE(pieceRules::pawnContextGate(b, 4, 1, 2, 1, 'w'));
 }

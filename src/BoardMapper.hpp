@@ -2,7 +2,7 @@
 
 #include <optional>
 
-#include "Position.hpp"
+#include "model/Position.hpp"
 
 namespace BoardMapper
 {

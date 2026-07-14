@@ -3,7 +3,8 @@
 #include <vector>
 
 #include "Controller.hpp"
-#include "Board.hpp"
+#include "model/Board.hpp"
+#include "BoardParser.hpp"
 #include "Movement.hpp"
 #include "config.hpp"
 
@@ -27,12 +28,19 @@ namespace
 
     Board makeBoard(std::initializer_list<std::initializer_list<std::string>> rows)
     {
-        Board b;
+        RawBoard raw;
         for (const auto &row : rows)
-        {
-            b.grid.push_back(std::vector<std::string>(row.begin(), row.end()));
-        }
-        return b;
+            raw.push_back(std::vector<std::string>(row.begin(), row.end()));
+        return buildBoard(raw);
+    }
+
+    // Local helper: reads back a single cell as a "colorkind" token (or
+    // ".") purely for test assertions - Board itself has no such concept.
+    std::string tokenAt(const Board &b, int row, int col)
+    {
+        const Piece *p = b.pieceAt(Position{row, col});
+        if (!p) return ".";
+        return std::string(1, p->color) + std::string(1, p->kind);
     }
 
     void clickCell(Controller &controller, int row, int col)
@@ -83,7 +91,7 @@ TEST_CASE("send_move_rejects_when_selection_is_inactive")
     controller.requestMove({{0, 0}, {0, 2}});
 
     CHECK_FALSE(controller.hasSelection());
-    CHECK(b.grid[0][0] == "wR");
+    CHECK(tokenAt(b, 0, 0) == "wR");
     CHECK(engine.requests.empty());
 }
 
@@ -99,8 +107,8 @@ TEST_CASE("invalid_clicks_do_not_mutate_state")
     clickCell(controller, 0, 2);
 
     CHECK_FALSE(controller.hasSelection());
-    CHECK(b.grid[0][0] == "wR");
-    CHECK(b.grid[0][2] == ".");
+    CHECK(tokenAt(b, 0, 0) == "wR");
+    CHECK(tokenAt(b, 0, 2) == ".");
     CHECK(engine.requests.empty());
 }
 TEST_CASE("jump_click_outside_board_is_ignored")

@@ -1,8 +1,26 @@
 #include "doctest.h"
 
-#include "Board.hpp"
+#include "model/Board.hpp"
 #include "BoardParser.hpp"
 #include "BoardPrinter.hpp"
+
+namespace {
+    // Local helper: mirrors the old convenience parseBoard(lines) API by
+    // combining the two production steps (split into RawBoard, then build
+    // a real Board of Pieces) - no validation, matching old semantics.
+    Board parseBoard(const std::vector<std::string>& lines) {
+        RawBoard raw = parseRawGrid(lines);
+        return buildBoard(raw);
+    }
+
+    // Local helper: reads back a single cell as a "colorkind" token (or
+    // ".") purely for test assertions - Board itself has no such concept.
+    std::string tokenAt(const Board& b, int row, int col) {
+        const Piece* p = b.pieceAt(Position{row, col});
+        if (!p) return ".";
+        return std::string(1, p->color) + std::string(1, p->kind);
+    }
+}
 
 TEST_CASE("trim removes leading and trailing whitespace") {
     CHECK(trim("  hello  ") == "hello");
@@ -60,14 +78,14 @@ TEST_CASE("parseSections ignores lines before any header") {
     CHECK(s.boardLines[0] == "wK .");
 }
 
-TEST_CASE("parseBoard builds a grid of tokens from board lines") {
+TEST_CASE("parseBoard builds a board of pieces from board lines") {
     Board b = parseBoard({"wR wN", "bR bN"});
     REQUIRE(b.rows() == 2);
     REQUIRE(b.cols() == 2);
-    CHECK(b.grid[0][0] == "wR");
-    CHECK(b.grid[0][1] == "wN");
-    CHECK(b.grid[1][0] == "bR");
-    CHECK(b.grid[1][1] == "bN");
+    CHECK(tokenAt(b, 0, 0) == "wR");
+    CHECK(tokenAt(b, 0, 1) == "wN");
+    CHECK(tokenAt(b, 1, 0) == "bR");
+    CHECK(tokenAt(b, 1, 1) == "bN");
 }
 
 TEST_CASE("Board::rows and Board::cols report grid dimensions") {
@@ -99,9 +117,9 @@ TEST_CASE("isValidToken rejects bad color, bad piece or bad length") {
 }
 
 TEST_CASE("validateBoard throws ROW_WIDTH_MISMATCH for inconsistent row widths") {
-    Board b = parseBoard({"wK wQ", "bK"});
+    RawBoard raw = parseRawGrid({"wK wQ", "bK"});
     try {
-        validateBoard(b);
+        validateBoard(raw);
         FAIL("expected BoardError");
     } catch (const BoardError& e) {
         CHECK(e.code() == "ROW_WIDTH_MISMATCH");
@@ -109,9 +127,9 @@ TEST_CASE("validateBoard throws ROW_WIDTH_MISMATCH for inconsistent row widths")
 }
 
 TEST_CASE("validateBoard throws UNKNOWN_TOKEN for invalid tokens") {
-    Board b = parseBoard({"wK xQ"});
+    RawBoard raw = parseRawGrid({"wK xQ"});
     try {
-        validateBoard(b);
+        validateBoard(raw);
         FAIL("expected BoardError");
     } catch (const BoardError& e) {
         CHECK(e.code() == "UNKNOWN_TOKEN");
@@ -119,13 +137,13 @@ TEST_CASE("validateBoard throws UNKNOWN_TOKEN for invalid tokens") {
 }
 
 TEST_CASE("validateBoard accepts a well formed board") {
-    Board b = parseBoard({"wK wQ", "bK bQ"});
-    CHECK_NOTHROW(validateBoard(b));
+    RawBoard raw = parseRawGrid({"wK wQ", "bK bQ"});
+    CHECK_NOTHROW(validateBoard(raw));
 }
 
 TEST_CASE("validateBoard does nothing for an empty board") {
-    Board b;
-    CHECK_NOTHROW(validateBoard(b));
+    RawBoard raw;
+    CHECK_NOTHROW(validateBoard(raw));
 }
 
 TEST_CASE("formatBoard renders rows as space separated tokens with trailing newline") {
@@ -136,13 +154,4 @@ TEST_CASE("formatBoard renders rows as space separated tokens with trailing newl
 TEST_CASE("formatBoard round trips with parseBoard") {
     Board b = parseBoard({"wR wN wB", "bR bN bB"});
     CHECK(formatBoard(b) == "wR wN wB\nbR bN bB\n");
-}
-
-TEST_CASE("isEmpty/colorOf/pieceOf read a single token") {
-    CHECK(isEmpty("."));
-    CHECK_FALSE(isEmpty("wK"));
-    CHECK(colorOf("wK") == 'w');
-    CHECK(colorOf("bQ") == 'b');
-    CHECK(pieceOf("wK") == 'K');
-    CHECK(pieceOf("bP") == 'P');
 }

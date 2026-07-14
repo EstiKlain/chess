@@ -4,10 +4,10 @@
 #include <optional>
 #include <utility>
 
-#include "Board.hpp"
+#include "model/Board.hpp"
 #include "BoardMapper.hpp"
 #include "MoveRequest.hpp"
-#include "Position.hpp"
+#include "model/Position.hpp"
 
 class Controller
 {
@@ -46,6 +46,8 @@ private:
     // handleJumpClick, so the mapping logic itself is written once.
     std::optional<Position> mapToCell(int x, int y) const;
 
+    void clearSelection();
+    void setSelection(int row, int col);
     Board &board_;
     Selection selection_;
     std::function<void(MoveRequest)> requestMoveCallback_;

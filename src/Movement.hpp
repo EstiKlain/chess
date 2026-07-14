@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Board.hpp"
+#include "model/Board.hpp"
 #include "Moves.hpp"
 #include "MoveLegality.hpp"
 #include "PieceRules.hpp"

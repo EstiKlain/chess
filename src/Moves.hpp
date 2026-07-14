@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string>
-
 // A move currently "in flight" between two cells.
 // Owned privately by RealTimeArbiter; also used as the shape-check
 // input for RuleEngine/Movement (checkPieceShape), which is why it
@@ -14,7 +12,7 @@ struct PieceMove
     int toRow, toCol;
     long startMs;
     long durationMs;
-    std::string piece;
+    int pieceId;
 };
 
 // A piece currently airborne (jump in progress).
@@ -24,5 +22,5 @@ struct JumpMove
     int row, col;
     long startMs;
     long durationMs;
-    std::string piece;
+    int pieceId;
 };

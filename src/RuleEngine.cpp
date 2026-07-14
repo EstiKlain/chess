@@ -3,7 +3,7 @@
 
 MoveLegality isMoveLegal(const Board &board, const PieceMove &move, char piece, const pieceRules::PieceRulesRegistry &registry)
 {
-    if (isEmpty(board.grid[move.fromRow][move.fromCol]))
+    if (board.pieceAt(Position{move.fromRow, move.fromCol}) == nullptr)
     {
         return {false, "empty_source"};
     }

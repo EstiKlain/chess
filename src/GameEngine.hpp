@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "Board.hpp"
+#include "model/Board.hpp"
 #include "MoveRequest.hpp"
 #include "RealTimeArbiter.hpp"
 #include "PieceRules.hpp"

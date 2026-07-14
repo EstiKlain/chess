@@ -2,13 +2,13 @@
 
 #include <algorithm>
 
-#include "Board.hpp"
 #include "Movement.hpp"
 #include "PieceRules.hpp"
+#include "model/Board.hpp"
 
-std::vector<std::string> RealTimeArbiter::resolveMoves(Board &board, long elapsedMs, const pieceRules::PieceRulesRegistry &registry)
+std::vector<Piece> RealTimeArbiter::resolveMoves(Board &board, long elapsedMs, const pieceRules::PieceRulesRegistry &registry)
 {
-    std::vector<std::string> captured;
+    std::vector<Piece> captured;
     std::vector<size_t> due;
     std::vector<PieceMove> stillMoving;
     for (size_t i = 0; i < activeMoves_.size(); ++i)
@@ -31,15 +31,19 @@ std::vector<std::string> RealTimeArbiter::resolveMoves(Board &board, long elapse
     {
         const PieceMove &m = activeMoves_[idx];
         long arrivalMs = m.startMs + m.durationMs;
-        std::string &target = board.grid[m.toRow][m.toCol];
-        std::string &origin = board.grid[m.fromRow][m.fromCol];
+
+        Piece *mover = board.pieceById(m.pieceId);
+        if (!mover)
+            continue; // mover no longer exists (e.g. captured earlier this batch) - nothing to resolve
 
         bool reverseCaptured = false;
         for (const auto &j : activeJumps_)
         {
             if (j.row != m.toRow || j.col != m.toCol)
                 continue;
-            if (colorOf(j.piece) == m.piece[0])
+
+            const Piece *jumper = board.pieceById(j.pieceId);
+            if (!jumper || jumper->color == mover->color)
                 continue; // only an enemy jump defends
 
             long jumpEndMs = j.startMs + j.durationMs;
@@ -47,8 +51,9 @@ std::vector<std::string> RealTimeArbiter::resolveMoves(Board &board, long elapse
             {
                 // the jumper wins: the arriving piece is captured,
                 // the jumper stays exactly where it was (rule 2)
-                captured.push_back(m.piece);
-                board.grid[m.fromRow][m.fromCol] = ".";
+                mover->state = PieceState::Captured;
+                captured.push_back(*mover);
+                board.removePiece(mover->id);
                 reverseCaptured = true;
             }
             break; // at most one jump can occupy a given cell
@@ -56,23 +61,37 @@ std::vector<std::string> RealTimeArbiter::resolveMoves(Board &board, long elapse
         if (reverseCaptured)
             continue;
 
-        if (!isEmpty(target) && colorOf(target) != m.piece[0])
+        const Position destinationCell{m.toRow, m.toCol};
+        Piece *destination = board.pieceAt(destinationCell);
+
+        if (destination != nullptr && destination->color != mover->color)
         {
-            captured.push_back(target);
-            target = m.piece;
-            if (pieceOf(m.piece) == 'P' && m.toRow == registry.pawnPromotionRow(colorOf(m.piece), board.rows()))
-                target[1] = 'Q';
-            origin = ".";
+            destination->state = PieceState::Captured;
+            captured.push_back(*destination);
+            const int moverId = mover->id;
+            board.removePiece(destination->id);
+
+            board.movePiece(mover->id, destinationCell);
+            if (Piece *freshMover = board.pieceById(moverId))
+            {
+                freshMover->state = PieceState::Idle;
+                if (freshMover->kind == 'P' && m.toRow == registry.pawnPromotionRow(freshMover->color, board.rows()))
+                    freshMover->kind = 'Q'; // שימוש ב-freshMover המעודכן מהלוח!
+            }
         }
-        else if (isEmpty(target))
+        else if (destination == nullptr)
         {
-            target = m.piece;
-            if (pieceOf(m.piece) == 'P' && m.toRow == registry.pawnPromotionRow(colorOf(m.piece), board.rows()))
-                target[1] = 'Q';
-            origin = ".";
+            board.movePiece(mover->id, destinationCell);
+            mover->state = PieceState::Idle;
+            if (mover->kind == 'P' && m.toRow == registry.pawnPromotionRow(mover->color, board.rows()))
+                mover->kind = 'Q';
         }
-        // else: friendly piece blocks destination -> move fails, piece stays at origin
-        // (origin was never cleared, so nothing to do here)
+        // else: friendly piece blocks destination -> move fails, piece stays
+        // at origin and simply returns to Idle (it never actually left).
+        else
+        {
+            mover->state = PieceState::Idle;
+        }
     }
 
     activeMoves_ = stillMoving;
@@ -81,7 +100,14 @@ std::vector<std::string> RealTimeArbiter::resolveMoves(Board &board, long elapse
     for (const auto &j : activeJumps_)
     {
         if (elapsedMs >= j.startMs + j.durationMs)
-            continue; // landed, drop it
+        {
+            // landed: if the piece is still there (wasn't captured mid-air
+            // by a defended arrival above, which already erased it), it
+            // simply returns to Idle - it never moved.
+            if (Piece *p = board.pieceById(j.pieceId))
+                p->state = PieceState::Idle;
+            continue;
+        }
         stillJumping.push_back(j);
     }
     activeJumps_ = stillJumping;
@@ -105,9 +131,11 @@ bool RealTimeArbiter::hasActiveMotion() const
     return !activeMoves_.empty();
 }
 
-void RealTimeArbiter::startMotion(const PieceMove &move)
+void RealTimeArbiter::startMotion(Board &board, const PieceMove &move)
 {
     activeMoves_.push_back(move);
+    if (Piece *p = board.pieceById(move.pieceId))
+        p->state = PieceState::Moving;
 }
 
 bool RealTimeArbiter::hasActiveJumpAt(int row, int col) const
@@ -118,7 +146,9 @@ bool RealTimeArbiter::hasActiveJumpAt(int row, int col) const
     return false;
 }
 
-void RealTimeArbiter::startJump(const JumpMove &jump)
+void RealTimeArbiter::startJump(Board &board, const JumpMove &jump)
 {
     activeJumps_.push_back(jump);
+    if (Piece *p = board.pieceById(jump.pieceId))
+        p->state = PieceState::Moving;
 }

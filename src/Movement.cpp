@@ -19,14 +19,15 @@ double cellDistance(int r1, int c1, int r2, int c2) {
 
 MoveLegality checkPieceShape(const Board &board, const PieceMove &move, char piece, const pieceRules::PieceRulesRegistry &registry) {
     const pieceRules::MoveRule *rule = registry.find(piece);
-    if (!rule) return {true, "legal"};  
+    if (!rule) return {true, "legal"};
 
-    char color = move.piece[0];
+    const Piece *mover = board.pieceById(move.pieceId);
+    char color = mover ? mover->color : '\0';
 
-    const std::string &destination = board.grid[move.toRow][move.toCol];
-    if (!isEmpty(destination) && colorOf(destination) == color) return {false, "friendly_destination"};
+    const Piece *destination = board.pieceAt(Position{move.toRow, move.toCol});
+    if (destination != nullptr && destination->color == color) return {false, "friendly_destination"};
 
-    bool isCapture = !isEmpty(destination);
+    bool isCapture = destination != nullptr;
     const pieceRules::MoveShapeFn &shape = (isCapture && rule->captureShape) ? rule->captureShape : rule->shape;
 
     int dRow = move.toRow - move.fromRow;

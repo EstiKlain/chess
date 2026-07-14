@@ -1,100 +1,84 @@
 #include "doctest.h"
 
 #include "RuleEngine.hpp"
-#include "Board.hpp"
+#include "model/Board.hpp"
 #include "BoardParser.hpp"
 
 static pieceRules::PieceRulesRegistry registry;
+
+namespace {
+    Board parseBoard(const std::vector<std::string>& lines) {
+        RawBoard raw = parseRawGrid(lines);
+        return buildBoard(raw);
+    }
+
+    PieceMove makeMove(const Board& b, int fromRow, int fromCol, int toRow, int toCol) {
+        PieceMove m;
+        m.fromRow = fromRow; m.fromCol = fromCol;
+        m.toRow = toRow;     m.toCol = toCol;
+        m.startMs = 0;       m.durationMs = 0;
+        const Piece* p = b.pieceAt(Position{fromRow, fromCol});
+        m.pieceId = p ? p->id : -1;
+        return m;
+    }
+}
+
 TEST_CASE("isMoveLegal delegates legal rook moves")
 {
-    Board b;
-    b.grid = {{"wR", ".", "."}};
-    PieceMove move;
-    move.fromRow = 0;
-    move.fromCol = 0;
-    move.toRow = 0;
-    move.toCol = 2;
-    move.piece = "wR";
+    Board b = parseBoard({"wR . ."});
 
-    CHECK(isMoveLegal(b, move, 'R', registry).isValid);
+    CHECK(isMoveLegal(b, makeMove(b, 0, 0, 0, 2), 'R', registry).isValid);
 }
 
 TEST_CASE("isMoveLegal rejects empty source before shape checks")
 {
-    Board b;
-    b.grid = {{".", ".", "wR"}};
-    PieceMove move;
-    move.fromRow = 0;
-    move.fromCol = 0;
-    move.toRow = 0;
-    move.toCol = 2;
-    move.piece = ".";
+    Board b = parseBoard({". . wR"});
 
-    const auto res = isMoveLegal(b, move, 'R', registry);
+    const auto res = isMoveLegal(b, makeMove(b, 0, 0, 0, 2), 'R', registry);
     CHECK_FALSE(res.isValid);
     CHECK(res.reason == "empty_source");
 }
 
 TEST_CASE("isMoveLegal rejects bishop-shaped rook move")
 {
-    Board b;
-    b.grid = {{"wR", ".", "."}, {".", ".", "."}};
-    PieceMove move;
-    move.fromRow = 0;
-    move.fromCol = 0;
-    move.toRow = 1;
-    move.toCol = 1;
-    move.piece = "wR";
+    Board b = parseBoard({"wR . .", ". . ."});
 
-    CHECK_FALSE(isMoveLegal(b, move, 'R', registry ).isValid);
+    CHECK_FALSE(isMoveLegal(b, makeMove(b, 0, 0, 1, 1), 'R', registry).isValid);
 }
 
 TEST_CASE("isMoveLegal bounds checking")
 {
     Board b = parseBoard({"wK .", ". ."}); // 2x2 board
-    PieceMove move;
-    move.fromRow = 0;
-    move.fromCol = 0;
-    move.piece = "wK";
 
     SUBCASE("outside_board - toRow too high") {
-        move.toRow = 2;
-        move.toCol = 0;
-        auto res = isMoveLegal(b, move, 'K', registry);
+        auto res = isMoveLegal(b, makeMove(b, 0, 0, 2, 0), 'K', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "outside_board");
     }
 
     SUBCASE("outside_board - toRow too low") {
-        move.toRow = -1;
-        move.toCol = 0;
-        auto res = isMoveLegal(b, move, 'K', registry);
+        auto res = isMoveLegal(b, makeMove(b, 0, 0, -1, 0), 'K', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "outside_board");
     }
 
     SUBCASE("outside_board - toCol too high") {
-        move.toRow = 0;
-        move.toCol = 2;
-        auto res = isMoveLegal(b, move, 'K', registry);
+        auto res = isMoveLegal(b, makeMove(b, 0, 0, 0, 2), 'K', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "outside_board");
     }
 
     SUBCASE("outside_board - toCol too low") {
-        move.toRow = 0;
-        move.toCol = -1;
-        auto res = isMoveLegal(b, move, 'K', registry);
+        auto res = isMoveLegal(b, makeMove(b, 0, 0, 0, -1), 'K', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "outside_board");
     }
 
     SUBCASE("forwards Movement's reason when in-bounds but illegal") {
-        move.toRow = 1;
-        move.toCol = 1; // Diagonal move for King is legal, so let's try something illegal
-        // Wait, king diagonal IS legal. Let's use a Rook.
-        move.piece = "wR";
-        auto res = isMoveLegal(b, move, 'R', registry);
+        // King diagonal is legal, so use a Rook shape check instead,
+        // while still resolving the mover's color from the actual wK
+        // sitting at (0,0) on this board.
+        auto res = isMoveLegal(b, makeMove(b, 0, 0, 1, 1), 'R', registry);
         CHECK_FALSE(res.isValid);
         CHECK(res.reason == "illegal_piece_move");
     }

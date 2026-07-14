@@ -35,10 +35,10 @@ Sections parseSections(const std::string& text) {
     return s;
 }
 
-Board parseBoard(const std::vector<std::string>& boardLines) {
-    Board b;
-    for (const auto& line : boardLines) b.grid.push_back(splitWords(line));
-    return b;
+RawBoard parseRawGrid(const std::vector<std::string>& boardLines) {
+    RawBoard raw;
+    for (const auto& line : boardLines) raw.push_back(splitWords(line));
+    return raw;
 }
 
 bool isValidToken(const std::string& t) {
@@ -52,14 +52,28 @@ bool isValidToken(const std::string& t) {
     }
 }
 
-void validateBoard(const Board& b) {
-    if (b.grid.empty()) return;
+void validateBoard(const RawBoard& raw) {
+    if (raw.empty()) return;
 
-    size_t expected = b.grid[0].size();
-    for (const auto& row : b.grid)                 // structural check
+    size_t expected = raw[0].size();
+    for (const auto& row : raw)                    // structural check
         if (row.size() != expected) throw BoardError("ROW_WIDTH_MISMATCH");
 
-    for (const auto& row : b.grid)                 // token check
+    for (const auto& row : raw)                    // token check
         for (const auto& tok : row)
             if (!isValidToken(tok)) throw BoardError("UNKNOWN_TOKEN");
+}
+
+Board buildBoard(const RawBoard& raw) {
+    Board b;
+    b.height = static_cast<int>(raw.size());
+    b.width = raw.empty() ? 0 : static_cast<int>(raw[0].size());
+
+    for (int r = 0; r < b.height; ++r)
+        for (int c = 0; c < b.width; ++c) {
+            const std::string& tok = raw[r][c];
+            if (tok == ".") continue;
+            b.addPiece(tok[0], tok[1], Position{r, c});
+        }
+    return b;
 }

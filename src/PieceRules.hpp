@@ -4,7 +4,7 @@
 #include <map>
 #include <string>
 
-#include "Board.hpp"
+#include "model/Board.hpp"
 
 namespace pieceRules
 {
@@ -54,7 +54,6 @@ namespace pieceRules
         // unregistered piece is NOT an error, it means "always legal"
         // (see section 5, checkPieceShape).
         const MoveRule *find(char piece) const;
-
         // Moved from config::pawnPromotionRow. This is a method (not a
         // free function) so that RealTimeArbiter, which already needs to
         // receive a PieceRulesRegistry for consistency, doesn't have a

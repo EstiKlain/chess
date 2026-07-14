@@ -14,17 +14,19 @@ int main()
 
     Sections sections = parseSections(input);
 
-    Board board = parseBoard(sections.boardLines);
+    RawBoard raw = parseRawGrid(sections.boardLines);
 
     try
     {
-        validateBoard(board);
+        validateBoard(raw);
     }
     catch (const BoardError &e)
     {
         std::cout << "ERROR " << e.code() << '\n';
         return 0;
     }
+
+    Board board = buildBoard(raw);
 
     GameEngine engine(board, pieceRules::PieceRulesRegistry());
 

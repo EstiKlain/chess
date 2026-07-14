@@ -1,11 +1,10 @@
 #include "GameOverRule.hpp"
-#include "Board.hpp"
 
-bool isGameOver(const std::vector<std::string> &capturedTokens)
+bool isGameOver(const std::vector<Piece> &capturedPieces)
 {
-    for (const auto &tok : capturedTokens)
+    for (const auto &piece : capturedPieces)
     {
-        if (pieceOf(tok) == 'K')
+        if (piece.kind == 'K')
             return true;
     }
     return false;

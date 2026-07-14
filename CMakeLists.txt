@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(chess_game
     src/main.cpp
-    src/Board.cpp
+    src/model/Board.cpp
     src/Movement.cpp
     src/Controller.cpp
     src/BoardMapper.cpp
@@ -38,7 +38,7 @@ if(BUILD_TESTS)
         tests/RuleEngine.tests.cpp
         tests/GameOverRule.tests.cpp
         tests/PieceRules.tests.cpp
-        src/Board.cpp
+        src/model/Board.cpp
         src/Movement.cpp
         src/Controller.cpp
         src/BoardMapper.cpp
