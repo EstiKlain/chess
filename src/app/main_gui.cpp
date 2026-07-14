@@ -1,9 +1,9 @@
 ﻿// UI-Iteration A: prove the Img/OpenCV window + draw loop works before
 // touching any game logic at all. On purpose, no GameEngine, no Board, no
 // Controller here -- only ICanvas and the pure BoardGeometry math get used.
-#include "../view/canvas/ImgCanvas.hpp"
-#include "../view/render/BoardGeometry.hpp"
-#include "../config.hpp"
+#include "view/canvas/ImgCanvas.hpp"
+#include "view/render/BoardGeometry.hpp"
+#include "config.hpp"
 
 int main()
 {

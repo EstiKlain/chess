@@ -38,6 +38,7 @@ Makefile
 *.idb
 
 *.zip
+*.sh
 
 # ===== Debug/Release folders (if not inside build/) =====
 Debug/

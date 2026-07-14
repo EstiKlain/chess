@@ -1,4 +1,4 @@
-#include "img.hpp"
+#include "view/canvas/img.hpp"
 #include <iostream>
 
 // PROJECT_ROOT is defined by CMake (see CMakeLists.txt) - it always points
