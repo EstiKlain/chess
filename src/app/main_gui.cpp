@@ -1,40 +1,42 @@
-﻿// UI-Iteration A: prove the Img/OpenCV window + draw loop works before
-// touching any game logic at all. On purpose, no GameEngine, no Board, no
-// Controller here -- only ICanvas and the pure BoardGeometry math get used.
+﻿// UI-Iteration B: draw the checkerboard AND the opening position, using
+// real piece sprites. Still no GameEngine/Controller/Board here on purpose
+// -- the opening layout comes from a flat CSV file that only the UI knows
+// about (view/render/PiecePlacement.hpp). From Iteration D onward this
+// file switches to GameEngine::snapshot() instead of the CSV.
+//
+// All board-drawing logic now lives in BoardRenderer (view/render), not
+// here -- main_gui.cpp used to duplicate BoardRenderer::drawBoard's exact
+// square-filling loop inline; that's gone, this file only orchestrates.
 #include "view/canvas/ImgCanvas.hpp"
 #include "view/render/BoardGeometry.hpp"
+#include "view/render/BoardRenderer.hpp"
+#include "view/render/PiecePlacement.hpp"
+#include "view/assets/SpriteLoader.hpp"
 #include "config.hpp"
+
+#ifndef PROJECT_ROOT
+#define PROJECT_ROOT "."
+#endif
 
 int main()
 {
-    // Iteration A only: there's no engine yet, so there's no real board to
-    // ask for rows/cols. 8x8 here is a literal on purpose, scoped to this
-    // file only -- from Iteration D onward this comes from
-    // GameEngine::snapshot().boardRows/boardCols, never a literal again.
     const int boardRows = 8;
     const int boardCols = 8;
-    const int cellSize = config::CELL_SIZE; // never re-hard-coded as 100 here
+    const int cellSize = config::CELL_SIZE;
 
     const auto size = BoardGeometry::boardPixelSize(boardRows, boardCols, cellSize);
     ImgCanvas canvas(size.width, size.height, "Kung Fu Chess");
 
-    const ColorRGB light{240, 217, 181};
+    SpriteLoader spriteLoader(std::string(PROJECT_ROOT) + "/assets/pieces2");
+    const auto placements = loadOpeningFromCsv(std::string(PROJECT_ROOT) + "/assets/pieces1/board.csv");
+
     const ColorRGB dark{181, 136, 99};
 
     while (!canvas.shouldClose())
     {
         canvas.clear(dark);
-        for (int row = 0; row < boardRows; ++row)
-        {
-            for (int col = 0; col < boardCols; ++col)
-            {
-                if (BoardGeometry::isLightSquare(row, col))
-                {
-                    const auto r = BoardGeometry::cellRect(row, col, cellSize);
-                    canvas.fillRect(Rect{r.x, r.y, r.w, r.h}, light);
-                }
-            }
-        }
+        BoardRenderer::drawBoard(canvas, boardRows, boardCols, cellSize);
+        BoardRenderer::drawPieces(canvas, spriteLoader, placements, cellSize);
         canvas.present();
     }
 

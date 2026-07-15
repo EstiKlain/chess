@@ -28,6 +28,8 @@ public:
 
     void clear(const ColorRGB &color) override;
     void fillRect(const Rect &rect, const ColorRGB &color) override;
+    void drawImage(const Img &sprite, int x, int y) override;
+
     void present() override;
     bool shouldClose() const override;
 

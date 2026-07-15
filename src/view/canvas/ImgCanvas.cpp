@@ -1,4 +1,5 @@
 ﻿#include "ImgCanvas.hpp"
+#include "img.hpp"
 
 ImgCanvas::ImgCanvas(int width, int height, const std::string &windowTitle)
     : width_(width), height_(height), windowTitle_(windowTitle)
@@ -27,6 +28,58 @@ void ImgCanvas::fillRect(const Rect &rect, const ColorRGB &color)
                   cv::Scalar(color.b, color.g, color.r),
                   cv::FILLED);
 }
+
+void ImgCanvas::drawImage(const Img &sprite, int x, int y)
+{
+    const cv::Mat &src = sprite.get_mat();
+    if (src.empty())
+        return; // nothing loaded — draw nothing rather than crash
+ 
+    const int w = src.cols;
+    const int h = src.rows;
+ 
+    // Clip silently instead of throwing (Img::draw_on throws on overflow;
+    // we'd rather a piece drawn one pixel past the board edge doesn't take
+    // the whole render loop down).
+    if (x < 0 || y < 0 || x + w > frame_.cols || y + h > frame_.rows)
+        return;
+ 
+    cv::Mat roi = frame_(cv::Rect(x, y, w, h));
+ 
+    if (src.channels() == 4)
+    {
+        // Proper per-pixel alpha blend: split into B/G/R/A planes, then for
+        // each color channel mix source and existing background weighted
+        // by alpha (0 = fully transparent, 255 = fully opaque).
+        std::vector<cv::Mat> srcChannels;
+        cv::split(src, srcChannels);
+ 
+        cv::Mat alpha;
+        srcChannels[3].convertTo(alpha, CV_32F, 1.0 / 255.0);
+        cv::Mat invAlpha = cv::Mat::ones(alpha.size(), CV_32F) - alpha;
+ 
+        std::vector<cv::Mat> roiChannels;
+        cv::split(roi, roiChannels);
+ 
+        for (int c = 0; c < 3; ++c)
+        {
+            cv::Mat srcF, roiF, blendedF, blended8;
+            srcChannels[c].convertTo(srcF, CV_32F);
+            roiChannels[c].convertTo(roiF, CV_32F);
+            blendedF = alpha.mul(srcF) + invAlpha.mul(roiF);
+            blendedF.convertTo(blended8, CV_8U);
+            roiChannels[c] = blended8;
+        }
+ 
+        cv::merge(roiChannels, roi);
+    }
+    else
+    {
+        // No alpha channel — opaque copy, same as Img::draw_on's fallback.
+        src.copyTo(roi);
+    }
+}
+ 
 
 void ImgCanvas::present()
 {

@@ -48,6 +48,9 @@ add_executable(chess_gui
     src/view/canvas/img.cpp
     src/view/canvas/ImgCanvas.cpp
     src/view/render/BoardGeometry.cpp
+    src/view/render/BoardRenderer.cpp
+    src/view/render/PiecePlacement.cpp
+    src/view/assets/SpriteLoader.cpp
 )
 target_include_directories(chess_gui PRIVATE src ${OpenCV_INCLUDE_DIRS})
 target_link_directories(chess_gui PRIVATE ${OpenCV_LIB_DIR})
@@ -55,6 +58,7 @@ target_link_libraries(chess_gui PRIVATE
     debug opencv_world451d
     optimized opencv_world451
 )
+target_compile_definitions(chess_gui PRIVATE PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
 
 add_custom_command(TARGET chess_gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -66,8 +70,7 @@ option(BUILD_TESTS "Build the doctest test suite" ON)
 
 if(BUILD_TESTS)
     enable_testing()
-
-    add_executable(chess_tests
+add_executable(chess_tests
         tests/unit/doctest_main.cpp
         tests/unit/Config.tests.cpp
         tests/unit/Board.tests.cpp
@@ -80,6 +83,9 @@ if(BUILD_TESTS)
         tests/unit/GameOverRule.tests.cpp
         tests/unit/PieceRules.tests.cpp
         tests/unit/BoardGeometry.tests.cpp
+        tests/unit/SpriteLoader.tests.cpp
+        tests/unit/PiecePlacement.tests.cpp
+        tests/unit/BoardRenderer.tests.cpp
         src/model/Board.cpp
         src/rules/Movement.cpp
         src/input/Controller.cpp
@@ -94,6 +100,9 @@ if(BUILD_TESTS)
         src/legacy/ScriptRunner.cpp
         src/view/canvas/img.cpp
         src/view/render/BoardGeometry.cpp
+        src/view/render/BoardRenderer.cpp
+        src/view/render/PiecePlacement.cpp
+        src/view/assets/SpriteLoader.cpp
     )
     target_include_directories(chess_tests PRIVATE src third_party ${OpenCV_INCLUDE_DIRS})
     target_link_directories(chess_tests PRIVATE ${OpenCV_LIB_DIR})
@@ -101,6 +110,7 @@ if(BUILD_TESTS)
         debug opencv_world451d
         optimized opencv_world451
     )
+    target_compile_definitions(chess_tests PRIVATE PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
 
     add_custom_command(TARGET chess_tests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

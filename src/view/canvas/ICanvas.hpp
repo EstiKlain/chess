@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+class Img;
+
 // Plain-old-data color/rect types so ICanvas has zero dependency on any
 // graphics library, including OpenCV. BoardRenderer, HUD classes, etc.
 // (Iteration B onward) talk only in terms of these + ICanvas.
@@ -30,6 +32,8 @@ public:
 
     virtual void clear(const ColorRGB &color) = 0;
     virtual void fillRect(const Rect &rect, const ColorRGB &color) = 0;
+
+    virtual void drawImage(const Img &sprite, int x, int y) = 0;
 
     // Pushes the current frame to the screen and pumps the window's event
     // loop for one tick (this is where cv::waitKey(1) lives, hidden inside
