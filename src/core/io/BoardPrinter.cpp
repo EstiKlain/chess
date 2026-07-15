@@ -1,4 +1,4 @@
-#include "legacy/BoardPrinter.hpp"
+#include "io/BoardPrinter.hpp"
 
 #include <sstream>
 #include <vector>

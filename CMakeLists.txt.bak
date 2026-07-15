@@ -11,22 +11,22 @@ set(OpenCV_LIB_DIR "${OpenCV_ROOT}/bin")
 
 # --- chess_game: your existing text-mode engine, UNCHANGED ----------------
 add_executable(chess_game
-    src/app/main_console.cpp
-    src/core/model/Board.cpp
-    src/core/rules/Movement.cpp
-    src/core/input/Controller.cpp
-    src/core/input/BoardMapper.cpp
-    src/core/realtime/RealTimeArbiter.cpp
-    src/core/rules/RuleEngine.cpp
-    src/core/rules/GameOverRule.cpp
-    src/core/io/BoardParser.cpp
-    src/core/io/BoardPrinter.cpp
-    src/core/engine/GameEngine.cpp
-    src/core/rules/PieceRules.cpp
-    src/core/texttests/ScriptRunner.cpp
+    src/legacy/main.cpp
+    src/model/Board.cpp
+    src/rules/Movement.cpp
+    src/input/Controller.cpp
+    src/input/BoardMapper.cpp
+    src/realtime/RealTimeArbiter.cpp
+    src/rules/RuleEngine.cpp
+    src/rules/GameOverRule.cpp
+    src/legacy/BoardParser.cpp
+    src/legacy/BoardPrinter.cpp
+    src/engine/GameEngine.cpp
+    src/rules/PieceRules.cpp
+    src/legacy/ScriptRunner.cpp
     src/view/canvas/img.cpp
 )
-target_include_directories(chess_game PRIVATE src src/core ${OpenCV_INCLUDE_DIRS})
+target_include_directories(chess_game PRIVATE src ${OpenCV_INCLUDE_DIRS})
 target_link_directories(chess_game PRIVATE ${OpenCV_LIB_DIR})
 target_link_libraries(chess_game PRIVATE
     debug opencv_world451d
@@ -52,7 +52,7 @@ add_executable(chess_gui
     src/view/render/PiecePlacement.cpp
     src/view/assets/SpriteLoader.cpp
 )
-target_include_directories(chess_gui PRIVATE src src/core ${OpenCV_INCLUDE_DIRS})
+target_include_directories(chess_gui PRIVATE src ${OpenCV_INCLUDE_DIRS})
 target_link_directories(chess_gui PRIVATE ${OpenCV_LIB_DIR})
 target_link_libraries(chess_gui PRIVATE
     debug opencv_world451d
@@ -86,25 +86,25 @@ add_executable(chess_tests
         tests/unit/SpriteLoader.tests.cpp
         tests/unit/PiecePlacement.tests.cpp
         tests/unit/BoardRenderer.tests.cpp
-        src/core/model/Board.cpp
-        src/core/rules/Movement.cpp
-        src/core/input/Controller.cpp
-        src/core/input/BoardMapper.cpp
-        src/core/realtime/RealTimeArbiter.cpp
-        src/core/rules/RuleEngine.cpp
-        src/core/rules/GameOverRule.cpp
-        src/core/io/BoardParser.cpp
-        src/core/io/BoardPrinter.cpp
-        src/core/engine/GameEngine.cpp
-        src/core/rules/PieceRules.cpp
-        src/core/texttests/ScriptRunner.cpp
+        src/model/Board.cpp
+        src/rules/Movement.cpp
+        src/input/Controller.cpp
+        src/input/BoardMapper.cpp
+        src/realtime/RealTimeArbiter.cpp
+        src/rules/RuleEngine.cpp
+        src/rules/GameOverRule.cpp
+        src/legacy/BoardParser.cpp
+        src/legacy/BoardPrinter.cpp
+        src/engine/GameEngine.cpp
+        src/rules/PieceRules.cpp
+        src/legacy/ScriptRunner.cpp
         src/view/canvas/img.cpp
         src/view/render/BoardGeometry.cpp
         src/view/render/BoardRenderer.cpp
         src/view/render/PiecePlacement.cpp
         src/view/assets/SpriteLoader.cpp
     )
-    target_include_directories(chess_tests PRIVATE src src/core third_party ${OpenCV_INCLUDE_DIRS})
+    target_include_directories(chess_tests PRIVATE src third_party ${OpenCV_INCLUDE_DIRS})
     target_link_directories(chess_tests PRIVATE ${OpenCV_LIB_DIR})
     target_link_libraries(chess_tests PRIVATE
         debug opencv_world451d
@@ -125,7 +125,7 @@ add_executable(img_test
     manual_tests/test_img.cpp
     src/view/canvas/img.cpp
 )
-target_include_directories(img_test PRIVATE src src/core ${OpenCV_INCLUDE_DIRS})
+target_include_directories(img_test PRIVATE src ${OpenCV_INCLUDE_DIRS})
 target_link_directories(img_test PRIVATE ${OpenCV_LIB_DIR})
 target_link_libraries(img_test PRIVATE
     debug opencv_world451d

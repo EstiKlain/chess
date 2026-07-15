@@ -4,7 +4,7 @@
 
 #include "input/Controller.hpp"
 #include "model/Board.hpp"
-#include "legacy/BoardParser.hpp"
+#include "io/BoardParser.hpp"
 #include "rules/Movement.hpp"
 #include "config.hpp"
 

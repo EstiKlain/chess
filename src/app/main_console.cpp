@@ -1,10 +1,10 @@
 #include <iostream>
 #include <string>
 
-#include "legacy/BoardParser.hpp"
+#include "io/BoardParser.hpp"
 #include "engine/GameEngine.hpp"
 #include "rules/PieceRules.hpp"
-#include "legacy/ScriptRunner.hpp"
+#include "texttests/ScriptRunner.hpp"
 
 int main()
 {

@@ -1,4 +1,4 @@
-#include "legacy/BoardParser.hpp"
+#include "io/BoardParser.hpp"
 
 #include <cctype>
 #include <sstream>

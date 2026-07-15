@@ -1,8 +1,8 @@
 #include "doctest.h"
 
 #include "model/Board.hpp"
-#include "legacy/BoardParser.hpp"
-#include "legacy/BoardPrinter.hpp"
+#include "io/BoardParser.hpp"
+#include "io/BoardPrinter.hpp"
 
 namespace {
     // Local helper: mirrors the old convenience parseBoard(lines) API by

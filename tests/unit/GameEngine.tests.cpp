@@ -3,11 +3,11 @@
 #include "engine/GameEngine.hpp"
 #include "input/Controller.hpp"
 #include "model/Board.hpp"
-#include "legacy/BoardParser.hpp"
-#include "legacy/BoardPrinter.hpp"
+#include "io/BoardParser.hpp"
+#include "io/BoardPrinter.hpp"
 #include "config.hpp"
 #include "engine/MoveRequest.hpp"
-#include "legacy/ScriptRunner.hpp"
+#include "texttests/ScriptRunner.hpp"
 
 
 static pieceRules::PieceRulesRegistry registry;

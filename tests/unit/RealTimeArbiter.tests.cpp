@@ -2,7 +2,7 @@
 
 #include "realtime/RealTimeArbiter.hpp"
 #include "model/Board.hpp"
-#include "legacy/BoardParser.hpp"
+#include "io/BoardParser.hpp"
 
 
 static pieceRules::PieceRulesRegistry registry;

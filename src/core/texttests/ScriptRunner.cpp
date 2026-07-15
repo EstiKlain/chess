@@ -1,11 +1,11 @@
-#include "legacy/ScriptRunner.hpp"
+#include "texttests/ScriptRunner.hpp"
 
 #include <iostream>
 #include <sstream>
 
 // #include "input/BoardMapper.hpp"
-#include "legacy/BoardParser.hpp"
-#include "legacy/BoardPrinter.hpp"
+#include "io/BoardParser.hpp"
+#include "io/BoardPrinter.hpp"
 #include "input/Controller.hpp"
 
 void runCommands(const std::vector<std::string> &commands, GameEngine &engine)
