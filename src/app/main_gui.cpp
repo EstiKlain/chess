@@ -12,6 +12,7 @@
 #include "view/render/BoardRenderer.hpp"
 #include "view/render/PiecePlacement.hpp"
 #include "view/assets/SpriteLoader.hpp"
+#include "view/input/ClickLogger.hpp"
 #include "config.hpp"
 
 #ifndef PROJECT_ROOT
@@ -29,6 +30,10 @@ int main()
 
     SpriteLoader spriteLoader(std::string(PROJECT_ROOT) + "/assets/pieces2");
     const auto placements = loadOpeningFromCsv(std::string(PROJECT_ROOT) + "/assets/pieces1/board.csv");
+
+    ClickLogger clickLogger(boardRows, boardCols);
+    canvas.setOnMouseClick([&clickLogger](int x, int y)
+                           { clickLogger.onClick(x, y); });
 
     const ColorRGB dark{181, 136, 99};
 

@@ -2,6 +2,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <string>
+#include <functional>
 
 #include "ICanvas.hpp"
 
@@ -33,6 +34,8 @@ public:
     void present() override;
     bool shouldClose() const override;
 
+    void setOnMouseClick(std::function<void(int x, int y)> callback) override;
+
     int width() const override { return width_; }
     int height() const override { return height_; }
 
@@ -43,9 +46,12 @@ public:
     cv::Mat &mat() { return frame_; }
 
 private:
+    static void mouseCallbackThunk(int event, int x, int y, int flags, void *userdata);
+
     int width_;
     int height_;
     std::string windowTitle_;
     cv::Mat frame_;
     bool closed_ = false;
+    std::function<void(int, int)> onClick_;
 };

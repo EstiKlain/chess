@@ -51,6 +51,8 @@ add_executable(chess_gui
     src/view/render/BoardRenderer.cpp
     src/view/render/PiecePlacement.cpp
     src/view/assets/SpriteLoader.cpp
+    src/core/input/BoardMapper.cpp    
+    src/view/input/ClickLogger.cpp
 )
 target_include_directories(chess_gui PRIVATE src src/core ${OpenCV_INCLUDE_DIRS})
 target_link_directories(chess_gui PRIVATE ${OpenCV_LIB_DIR})
@@ -78,6 +80,7 @@ add_executable(chess_tests
         tests/unit/GameEngine.tests.cpp
         tests/unit/Controller.tests.cpp
         tests/unit/BoardMapper.tests.cpp
+        tests/unit/ClickLogger.tests.cpp   
         tests/unit/RealTimeArbiter.tests.cpp
         tests/unit/RuleEngine.tests.cpp
         tests/unit/GameOverRule.tests.cpp
@@ -103,6 +106,7 @@ add_executable(chess_tests
         src/view/render/BoardRenderer.cpp
         src/view/render/PiecePlacement.cpp
         src/view/assets/SpriteLoader.cpp
+        src/view/input/ClickLogger.cpp
     )
     target_include_directories(chess_tests PRIVATE src src/core third_party ${OpenCV_INCLUDE_DIRS})
     target_link_directories(chess_tests PRIVATE ${OpenCV_LIB_DIR})

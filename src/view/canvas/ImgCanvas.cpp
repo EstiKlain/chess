@@ -97,3 +97,19 @@ bool ImgCanvas::shouldClose() const
 {
     return closed_;
 }
+
+void ImgCanvas::setOnMouseClick(std::function<void(int, int)> callback)
+{
+    onClick_ = std::move(callback);
+    cv::setMouseCallback(windowTitle_, &ImgCanvas::mouseCallbackThunk, this);
+}
+
+void ImgCanvas::mouseCallbackThunk(int event, int x, int y, int /*flags*/, void *userdata)
+{
+    if (event != cv::EVENT_LBUTTONDOWN)
+        return;
+
+    auto *self = static_cast<ImgCanvas *>(userdata);
+    if (self && self->onClick_)
+        self->onClick_(x, y);
+}

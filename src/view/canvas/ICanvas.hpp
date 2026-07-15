@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <cstdint>
+#include <functional>
 
 class Img;
 
@@ -42,6 +43,8 @@ public:
 
     // True once the user closed the window or pressed the quit key.
     virtual bool shouldClose() const = 0;
+    
+    virtual void setOnMouseClick(std::function<void(int x, int y)> callback) = 0;
 
     virtual int width() const = 0;
     virtual int height() const = 0;

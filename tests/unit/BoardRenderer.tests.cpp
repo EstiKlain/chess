@@ -7,6 +7,7 @@
 
 #include <utility>
 #include <vector>
+#include <functional>
 
 #ifndef PROJECT_ROOT
 #define PROJECT_ROOT "."
@@ -30,6 +31,7 @@ namespace
         }
         void present() override {}
         bool shouldClose() const override { return false; }
+        void setOnMouseClick(std::function<void(int, int)>) override {}
         int width() const override { return 800; }
         int height() const override { return 800; }
     };
