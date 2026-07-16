@@ -69,7 +69,7 @@ int main()
         [&](const std::string &pieceCode, const std::string &state) -> AnimationSpec
     {
         const AnimationConfig &config = animConfigLoader.configFor(pieceCode, state);
-        return AnimationSpec{config.framesPerSec, spriteLoader.frameCount(pieceCode, state), config.isLoop}; // CHANGED: added config.isLoop
+        return AnimationSpec{config.framesPerSec, spriteLoader.frameCount(pieceCode, state), config.isLoop}; 
     };
 
     canvas.setOnMouseClick([&controller](int x, int y)
