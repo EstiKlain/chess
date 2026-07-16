@@ -1,6 +1,10 @@
 ﻿#pragma once
 
 #include <cstdint>
+#include <functional>
+#include <string>
+
+class Img;
 
 // Plain-old-data color/rect types so ICanvas has zero dependency on any
 // graphics library, including OpenCV. BoardRenderer, HUD classes, etc.
@@ -31,6 +35,8 @@ public:
     virtual void clear(const ColorRGB &color) = 0;
     virtual void fillRect(const Rect &rect, const ColorRGB &color) = 0;
 
+    virtual void drawImage(const Img &sprite, int x, int y) = 0;
+
     // Pushes the current frame to the screen and pumps the window's event
     // loop for one tick (this is where cv::waitKey(1) lives, hidden inside
     // ImgCanvas). Must be called once per frame.
@@ -38,6 +44,16 @@ public:
 
     // True once the user closed the window or pressed the quit key.
     virtual bool shouldClose() const = 0;
+    
+    virtual void setOnMouseClick(std::function<void(int x, int y)> callback) = 0;
+
+    // Iteration D: added solely for the game-over banner (see
+    // BoardRenderer::drawGameOverOverlay). Same rule as
+    // setOnMouseClick above - only ImgCanvas is allowed to turn this
+    // into an actual OpenCV call (cv::putText). This is a breaking
+    // change to ICanvas: every implementation (including test fakes)
+    // needs a new override.
+    virtual void drawText(const std::string &text, int x, int y, const ColorRGB &color) = 0;
 
     virtual int width() const = 0;
     virtual int height() const = 0;

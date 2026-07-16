@@ -3,11 +3,11 @@
 #include "engine/GameEngine.hpp"
 #include "input/Controller.hpp"
 #include "model/Board.hpp"
-#include "legacy/BoardParser.hpp"
-#include "legacy/BoardPrinter.hpp"
+#include "io/BoardParser.hpp"
+#include "io/BoardPrinter.hpp"
 #include "config.hpp"
 #include "engine/MoveRequest.hpp"
-#include "legacy/ScriptRunner.hpp"
+#include "texttests/ScriptRunner.hpp"
 
 
 static pieceRules::PieceRulesRegistry registry;
@@ -100,20 +100,23 @@ TEST_CASE("move_resolves_at_exact_boundary_in_common_route")
     CHECK(tokenAt(engine.board(), 0, 3) == "wR");
 }
 
-TEST_CASE("can_move_again_immediately_after_arrival_with_no_cooldown")
+TEST_CASE("second_move_is_rejected_immediately_after_arrival_while_resting")
 {
-    // Why this matters: once a move arrives, the piece must be immediately
-    // ready for another command, with no artificial cooldown.
+   
     GameEngine engine(makeBoard({{"wR", ".", ".", "."}}), registry);
     REQUIRE(engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 3}}).accepted);
-    engine.wait(3000);
 
-    MoveResult second = engine.requestMove(MoveRequest{Position{0, 3}, Position{0, 0}});
+    engine.wait(3000); // move lands - rook enters RestingLong
+    CHECK(tokenAt(engine.board(), 0, 3) == "wR");
 
-    CHECK(second.accepted);
-    engine.wait(3000);
-    CHECK(tokenAt(engine.board(), 0, 0) == "wR");
-    CHECK(tokenAt(engine.board(), 0, 3) == ".");
+    MoveResult tooSoon = engine.requestMove(MoveRequest{Position{0, 3}, Position{0, 0}});
+    CHECK_FALSE(tooSoon.accepted);
+    CHECK(tooSoon.reason == "resting");
+
+    engine.wait(config::statsFor('R').longRestMs); // cooldown fully elapses
+
+    MoveResult afterRest = engine.requestMove(MoveRequest{Position{0, 3}, Position{0, 0}});
+    CHECK(afterRest.accepted);
 }
 
 TEST_CASE("second_move_to_same_destination_is_rejected_while_first_still_in_flight")
@@ -346,4 +349,26 @@ TEST_CASE("a_king_that_jumps_survives_an_incoming_capture_attempt_during_the_jum
     CHECK_FALSE(engine.gameOver());
     CHECK(tokenAt(engine.board(), 0, 0) == "bK");
     CHECK(tokenAt(engine.board(), 0, 1) == ".");
+}
+
+TEST_CASE("jump_is_rejected_while_piece_is_resting_after_a_move")
+{
+    GameEngine engine(makeBoard({{"wR", ".", ".", "."}}), registry);
+    REQUIRE(engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 3}}).accepted);
+    engine.wait(3000);
+
+    JumpResult result = engine.requestJump(0, 3);
+    CHECK_FALSE(result.accepted);
+    CHECK(result.reason == "resting");
+}
+
+TEST_CASE("move_is_rejected_while_piece_is_resting_after_a_jump")
+{
+    GameEngine engine(makeBoard({{"wR", ".", "."}}), registry);
+    REQUIRE(engine.requestJump(0, 0).accepted);
+    engine.wait(config::JUMP_DURATION_MS); // jump lands - rook enters RestingShort
+
+    MoveResult result = engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 1}});
+    CHECK_FALSE(result.accepted);
+    CHECK(result.reason == "resting");
 }

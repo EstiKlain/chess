@@ -1,7 +1,7 @@
 #include "doctest.h"
 #include "rules/PieceRules.hpp"
 #include "model/Board.hpp"
-#include "legacy/BoardParser.hpp"
+#include "io/BoardParser.hpp"
 
 namespace {
     Board parseBoard(const std::vector<std::string>& lines) {
