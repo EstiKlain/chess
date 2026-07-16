@@ -5,6 +5,7 @@
 #include "view/render/BoardRenderer.hpp"
 #include "view/assets/SpriteLoader.hpp"
 
+#include <string>
 #include <utility>
 #include <vector>
 #include <functional>
@@ -20,10 +21,17 @@ namespace
     public:
         int fillRectCalls = 0;
         int drawImageCalls = 0;
+        int drawTextCalls = 0;
         std::vector<std::pair<int, int>> imagePositions;
+        std::vector<Rect> fillRects;
+        std::string lastText;
 
         void clear(const ColorRGB &) override {}
-        void fillRect(const Rect &, const ColorRGB &) override { ++fillRectCalls; }
+        void fillRect(const Rect &rect, const ColorRGB &) override
+        {
+            ++fillRectCalls;
+            fillRects.push_back(rect);
+        }
         void drawImage(const Img &, int x, int y) override
         {
             ++drawImageCalls;
@@ -32,6 +40,11 @@ namespace
         void present() override {}
         bool shouldClose() const override { return false; }
         void setOnMouseClick(std::function<void(int, int)>) override {}
+        void drawText(const std::string &text, int, int, const ColorRGB &) override
+        {
+            ++drawTextCalls;
+            lastText = text;
+        }
         int width() const override { return 800; }
         int height() const override { return 800; }
     };
@@ -74,4 +87,45 @@ TEST_CASE("drawPieces draws nothing for an empty placement list")
     SpriteLoader loader(std::string(PROJECT_ROOT) + "/assets/pieces2");
     BoardRenderer::drawPieces(canvas, loader, {}, 100);
     CHECK(canvas.drawImageCalls == 0);
+}
+
+// --- Iteration D --------------------------------------------------------
+
+TEST_CASE("highlightCell draws exactly four border strips, none of them full-size")
+{
+    FakeCanvas canvas;
+    BoardRenderer::highlightCell(canvas, 2, 3, 100);
+
+    REQUIRE(canvas.fillRectCalls == 4);
+    for (const Rect &r : canvas.fillRects)
+    {
+        // A border strip must never be a full 100x100 fill - that would
+        // hide the piece underneath instead of framing it.
+        CHECK((r.w < 100 || r.h < 100));
+    }
+}
+
+TEST_CASE("highlightCell places its strips within the target cell's bounds")
+{
+    FakeCanvas canvas;
+    BoardRenderer::highlightCell(canvas, 1, 1, 100);
+
+    for (const Rect &r : canvas.fillRects)
+    {
+        CHECK(r.x >= 100);
+        CHECK(r.x <= 200);
+        CHECK(r.y >= 100);
+        CHECK(r.y <= 200);
+    }
+}
+
+TEST_CASE("drawGameOverOverlay draws text exactly once, and never touches fillRect/drawImage")
+{
+    FakeCanvas canvas;
+    BoardRenderer::drawGameOverOverlay(canvas, 800, 800);
+
+    CHECK(canvas.drawTextCalls == 1);
+    CHECK(canvas.fillRectCalls == 0);
+    CHECK(canvas.drawImageCalls == 0);
+    CHECK(canvas.lastText == "GAME OVER");
 }

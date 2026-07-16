@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <string>
 
 class Img;
 
@@ -45,6 +46,14 @@ public:
     virtual bool shouldClose() const = 0;
     
     virtual void setOnMouseClick(std::function<void(int x, int y)> callback) = 0;
+
+    // Iteration D: added solely for the game-over banner (see
+    // BoardRenderer::drawGameOverOverlay). Same rule as
+    // setOnMouseClick above - only ImgCanvas is allowed to turn this
+    // into an actual OpenCV call (cv::putText). This is a breaking
+    // change to ICanvas: every implementation (including test fakes)
+    // needs a new override.
+    virtual void drawText(const std::string &text, int x, int y, const ColorRGB &color) = 0;
 
     virtual int width() const = 0;
     virtual int height() const = 0;

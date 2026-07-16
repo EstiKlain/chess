@@ -104,6 +104,13 @@ void ImgCanvas::setOnMouseClick(std::function<void(int, int)> callback)
     cv::setMouseCallback(windowTitle_, &ImgCanvas::mouseCallbackThunk, this);
 }
 
+void ImgCanvas::drawText(const std::string &text, int x, int y, const ColorRGB &color)
+{
+    cv::putText(frame_, text, cv::Point(x, y),
+                cv::FONT_HERSHEY_SIMPLEX, 1.0,
+                cv::Scalar(color.b, color.g, color.r), 2);
+}
+
 void ImgCanvas::mouseCallbackThunk(int event, int x, int y, int /*flags*/, void *userdata)
 {
     if (event != cv::EVENT_LBUTTONDOWN)

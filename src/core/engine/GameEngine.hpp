@@ -5,6 +5,7 @@
 
 #include "model/Board.hpp"
 #include "engine/MoveRequest.hpp"
+#include "engine/GameSnapshot.hpp"
 #include "realtime/RealTimeArbiter.hpp"
 #include "rules/PieceRules.hpp"
 
@@ -42,6 +43,11 @@ public:
 
     // Advances the clock and lets the arbiter resolve anything that is due.
     void wait(long ms);
+
+    // The single read-only gate OUT of the game, mirroring requestMove/
+    // requestJump as the single gate IN. Returns a fresh value-copy every
+    // call (Stage/Iteration D) - see GameSnapshot.hpp for why.
+    GameSnapshot snapshot() const;
 
     Board &board() { return board_; }
     const Board &board() const { return board_; }

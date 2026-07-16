@@ -39,10 +39,11 @@ add_custom_command(TARGET chess_game POST_BUILD
         "$<TARGET_FILE_DIR:chess_game>"
 )
 
-# --- chess_gui: NEW - UI-Iteration A window, no engine wired in yet -------
-# Deliberately does NOT link model/rules/engine sources: Iteration A draws
-# an empty checkerboard only, it doesn't touch GameEngine/Controller at all.
-# Those get added to this same target's source list starting Iteration D.
+# --- chess_gui: the real GUI, wired to GameEngine/Controller as of ---------
+# Iteration D. Iterations A-C deliberately did NOT link model/rules/engine
+# sources (they drew from a flat CSV, no logic at all); this target's
+# source list now includes the same core/ sources chess_game (text mode)
+# links, so both executables share one GameEngine, not two.
 add_executable(chess_gui
     src/app/main_gui.cpp
     src/view/canvas/img.cpp
@@ -50,8 +51,19 @@ add_executable(chess_gui
     src/view/render/BoardGeometry.cpp
     src/view/render/BoardRenderer.cpp
     src/view/render/PiecePlacement.cpp
+    src/view/render/SnapshotAdapter.cpp
     src/view/assets/SpriteLoader.cpp
-    src/core/input/BoardMapper.cpp    
+    src/core/input/BoardMapper.cpp
+    src/core/input/Controller.cpp
+    src/core/model/Board.cpp
+    src/core/rules/Movement.cpp
+    src/core/rules/RuleEngine.cpp
+    src/core/rules/GameOverRule.cpp
+    src/core/rules/PieceRules.cpp
+    src/core/realtime/RealTimeArbiter.cpp
+    src/core/io/BoardParser.cpp
+    src/core/io/BoardPrinter.cpp
+    src/core/engine/GameEngine.cpp
     src/view/input/ClickLogger.cpp
 )
 target_include_directories(chess_gui PRIVATE src src/core ${OpenCV_INCLUDE_DIRS})
@@ -78,6 +90,8 @@ add_executable(chess_tests
         tests/unit/Board.tests.cpp
         tests/unit/Movement.tests.cpp
         tests/unit/GameEngine.tests.cpp
+        tests/unit/GameSnapshot.tests.cpp
+        tests/unit/SnapshotAdapter.tests.cpp
         tests/unit/Controller.tests.cpp
         tests/unit/BoardMapper.tests.cpp
         tests/unit/ClickLogger.tests.cpp   
@@ -105,6 +119,7 @@ add_executable(chess_tests
         src/view/render/BoardGeometry.cpp
         src/view/render/BoardRenderer.cpp
         src/view/render/PiecePlacement.cpp
+        src/view/render/SnapshotAdapter.cpp
         src/view/assets/SpriteLoader.cpp
         src/view/input/ClickLogger.cpp
     )

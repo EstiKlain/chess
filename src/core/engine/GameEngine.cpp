@@ -91,3 +91,19 @@ void GameEngine::wait(long ms)
     if (isGameOver(captured))
         gameOver_ = true;
 }
+
+GameSnapshot GameEngine::snapshot() const
+{
+    GameSnapshot s;
+    s.rows = board_.rows();
+    s.cols = board_.cols();
+    s.gameOver = gameOver_;
+
+    s.pieces.reserve(board_.pieces().size());
+    for (const Piece &p : board_.pieces())
+    {
+        s.pieces.push_back(PieceSnapshot{p.id, p.color, p.kind, p.cell.row, p.cell.col});
+    }
+
+    return s;
+}

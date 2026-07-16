@@ -36,6 +36,8 @@ public:
 
     void setOnMouseClick(std::function<void(int x, int y)> callback) override;
 
+    void drawText(const std::string &text, int x, int y, const ColorRGB &color) override;
+
     int width() const override { return width_; }
     int height() const override { return height_; }
 
