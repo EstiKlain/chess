@@ -32,6 +32,9 @@ MoveResult GameEngine::requestMove(const MoveRequest &request)
 
     const Piece *selected = board_.pieceAt(Position{fromRow, fromCol});
 
+    if (selected && arbiter_.isPieceResting(selected->id))
+        return {false, "resting"};
+
     PieceMove m;
     m.fromRow = fromRow;
     m.fromCol = fromCol;
@@ -64,6 +67,9 @@ JumpResult GameEngine::requestJump(int row, int col)
     const Piece *selected = board_.pieceAt(Position{row, col});
     if (!selected)
         return {false, "empty_source"};
+
+    if (arbiter_.isPieceResting(selected->id)) 
+        return {false, "resting"};
 
     if (arbiter_.isPieceInFlight(row, col))
         return {false, "motion_in_progress"};
@@ -98,11 +104,34 @@ GameSnapshot GameEngine::snapshot() const
     s.rows = board_.rows();
     s.cols = board_.cols();
     s.gameOver = gameOver_;
+    s.nowMs = elapsedMs_;
 
     s.pieces.reserve(board_.pieces().size());
     for (const Piece &p : board_.pieces())
     {
-        s.pieces.push_back(PieceSnapshot{p.id, p.color, p.kind, p.cell.row, p.cell.col});
+        PieceSnapshot ps{p.id, p.color, p.kind, p.cell.row, p.cell.col};
+        ps.state = p.state; 
+
+        if (const std::optional<PieceMove> move = arbiter_.activeMoveForPiece(p.id))
+        {
+            ps.motion = MotionSnapshot{move->fromRow, move->fromCol,
+                                        move->toRow, move->toCol,
+                                        move->startMs, move->durationMs};
+            ps.stateStartMs = move->startMs;
+            ps.stateDurationMs = move->durationMs;
+        }
+        else if (const std::optional<JumpMove> jump = arbiter_.activeJumpForPiece(p.id)) 
+        {
+            ps.stateStartMs = jump->startMs;
+            ps.stateDurationMs = jump->durationMs;
+        }
+        else if (const std::optional<RestWindow> rest = arbiter_.activeRestForPiece(p.id)) 
+        {
+            ps.stateStartMs = rest->startMs;
+            ps.stateDurationMs = rest->durationMs;
+        }
+
+        s.pieces.push_back(ps);
     }
 
     return s;

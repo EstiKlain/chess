@@ -1,4 +1,4 @@
-// Uses real files under assets/pieces2 (via PROJECT_ROOT), same convention
+// Uses real files under assets/pieces_classic (via PROJECT_ROOT), same convention
 // as img_test's manual sprite-loading check -- this just makes it an
 // automated doctest instead of a manual run.
 #include "doctest.h"
@@ -11,7 +11,7 @@
 
 TEST_CASE("SpriteLoader returns a non-empty idle sprite for a known piece code")
 {
-    SpriteLoader loader(std::string(PROJECT_ROOT) + "/assets/pieces2");
+    SpriteLoader loader(std::string(PROJECT_ROOT) + "/assets/pieces_classic");
 
     const Img &queen = loader.idleSprite("QW", 100);
     CHECK(queen.is_loaded());
@@ -22,7 +22,7 @@ TEST_CASE("SpriteLoader returns a non-empty idle sprite for a known piece code")
 
 TEST_CASE("SpriteLoader caches: repeated calls for the same code don't reload")
 {
-    SpriteLoader loader(std::string(PROJECT_ROOT) + "/assets/pieces2");
+    SpriteLoader loader(std::string(PROJECT_ROOT) + "/assets/pieces_classic");
 
     const Img &first = loader.idleSprite("KB", 100);
     const Img &second = loader.idleSprite("KB", 100);

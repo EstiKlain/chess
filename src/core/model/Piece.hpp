@@ -2,8 +2,7 @@
 
 #include "Position.hpp"
 
-enum class PieceState { Idle, Moving, Captured };
-
+enum class PieceState { Idle, Moving, Jumping, RestingShort, RestingLong, Captured };
 struct Piece {
     int id;
     char color;   // 'w' or 'b'

@@ -11,8 +11,6 @@ namespace SnapshotAdapter
 
         for (const PieceSnapshot &p : snapshot.pieces)
         {
-            // pieceCode convention (matches asset folder names): kind
-            // first, then uppercase color - e.g. kind='Q', color='w' -> "QW".
             const std::string code = std::string(1, p.kind) +
                                       std::string(1, static_cast<char>(std::toupper(static_cast<unsigned char>(p.color))));
             placements.push_back(PiecePlacement{code, p.row, p.col});

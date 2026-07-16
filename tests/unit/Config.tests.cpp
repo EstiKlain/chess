@@ -14,3 +14,7 @@ TEST_CASE("statsFor returns known speeds for standard pieces") {
 TEST_CASE("statsFor defaults unknown pieces to zero speed") {
     CHECK(config::statsFor('X').speedCellsPerSec == doctest::Approx(0.0));
 }
+TEST_CASE("statsFor returns non-negative rest durations for standard pieces") {
+    CHECK(config::statsFor('R').shortRestMs >= 0);
+    CHECK(config::statsFor('R').longRestMs >= 0);
+}

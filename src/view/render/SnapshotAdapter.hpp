@@ -9,7 +9,7 @@
 // (kind, color) representation into the view's pieceCode string
 // convention that SpriteLoader/BoardRenderer already expect from
 // Iteration B - e.g. kind='Q', color='w' -> "QW", matching the
-// assets/pieces2/QW/... folder name exactly.
+// assets/pieces_classic/QW/... folder name exactly.
 //
 // This exists so BoardRenderer::drawPieces (already written and tested
 // in Iteration B) needs ZERO changes for Iteration D: it still only

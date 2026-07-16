@@ -1,5 +1,6 @@
 #pragma once
 
+#include "model/Piece.hpp"
 // A move currently "in flight" between two cells.
 // Owned privately by RealTimeArbiter; also used as the shape-check
 // input for RuleEngine/Movement (checkPieceShape), which is why it
@@ -23,4 +24,12 @@ struct JumpMove
     long startMs;
     long durationMs;
     int pieceId;
+};
+
+struct RestWindow
+{
+    int pieceId;
+    long startMs;
+    long durationMs;
+    PieceState kind; // RestingShort or RestingLong
 };

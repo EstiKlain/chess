@@ -25,9 +25,9 @@ namespace BoardRenderer
     }
 
     void drawPieces(ICanvas &canvas,
-                     SpriteLoader &spriteLoader,
-                     const std::vector<PiecePlacement> &placements,
-                     int cellSize)
+                    SpriteLoader &spriteLoader,
+                    const std::vector<PiecePlacement> &placements,
+                    int cellSize)
     {
         for (const auto &placement : placements)
         {
@@ -36,17 +36,28 @@ namespace BoardRenderer
             canvas.drawImage(sprite, r.x, r.y);
         }
     }
-
+    void drawAnimatedPieces(ICanvas &canvas,
+                            SpriteLoader &spriteLoader,
+                            const std::vector<AnimatedPlacement> &placements,
+                            int cellSize)
+    {
+        for (const auto &placement : placements)
+        {
+            const auto &sprite = spriteLoader.frame(placement.pieceCode, placement.state, placement.frameIndex, cellSize);
+            canvas.drawImage(sprite, placement.pixelX, placement.pixelY);
+        }
+    }
+    
     void highlightCell(ICanvas &canvas, int row, int col, int cellSize)
     {
         const ColorRGB gold{255, 215, 0};
         const int thickness = 4;
         const auto r = BoardGeometry::cellRect(row, col, cellSize);
 
-        canvas.fillRect(Rect{r.x, r.y, r.w, thickness}, gold);                              // top
-        canvas.fillRect(Rect{r.x, r.y + r.h - thickness, r.w, thickness}, gold);            // bottom
-        canvas.fillRect(Rect{r.x, r.y, thickness, r.h}, gold);                              // left
-        canvas.fillRect(Rect{r.x + r.w - thickness, r.y, thickness, r.h}, gold);            // right
+        canvas.fillRect(Rect{r.x, r.y, r.w, thickness}, gold);                   // top
+        canvas.fillRect(Rect{r.x, r.y + r.h - thickness, r.w, thickness}, gold); // bottom
+        canvas.fillRect(Rect{r.x, r.y, thickness, r.h}, gold);                   // left
+        canvas.fillRect(Rect{r.x + r.w - thickness, r.y, thickness, r.h}, gold); // right
     }
 
     void drawGameOverOverlay(ICanvas &canvas, int boardWidthPx, int boardHeightPx)

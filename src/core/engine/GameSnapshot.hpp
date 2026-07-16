@@ -1,26 +1,27 @@
 #pragma once
 
+#include <optional>
 #include <vector>
-
-// Read-only, value-copy view of the game state for the UI layer.
-// Built fresh by GameEngine::snapshot() on every call. Every field here
-// is a plain value (int/char) - never a pointer or reference into
-// Board/Piece - so once returned, a GameSnapshot stays valid even after
-// the engine mutates board_ on the next tick. Renderer/HUD code (view/)
-// must only ever read game state through this struct, never through
-// Board/Piece directly (see kungfu_chess_ui_plan.md, UI-Iteration D).
-//
-// Deliberately does NOT carry selection: selection is Controller's
-// (input-layer) concept, not the engine's. main_gui.cpp (composition
-// root) merges GameSnapshot with Controller::hasSelection()/selectedRow()/
-// selectedCol() itself when it builds what to render.
+#include "model/Piece.hpp"
+struct MotionSnapshot
+{
+    int fromRow, fromCol;
+    int toRow, toCol;
+    long startMs;
+    long durationMs;
+};
 struct PieceSnapshot
 {
     int id;
-    char color; // 'w' or 'b'
-    char kind;  // 'K','Q','R','B','N','P'
+    char color;
+    char kind;
     int row;
     int col;
+
+    PieceState state = PieceState::Idle;
+    long stateStartMs = 0;
+    long stateDurationMs = 0;
+    std::optional<MotionSnapshot> motion;
 };
 
 struct GameSnapshot
@@ -29,4 +30,5 @@ struct GameSnapshot
     int cols = 0;
     std::vector<PieceSnapshot> pieces;
     bool gameOver = false;
+    long nowMs = 0;
 };

@@ -5,6 +5,23 @@
 #include "rules/Movement.hpp"
 #include "rules/PieceRules.hpp"
 #include "model/Board.hpp"
+#include "config.hpp" 
+
+void RealTimeArbiter::startRest(Board &board, int pieceId, long startMs, long durationMs, PieceState kind)
+{
+    Piece *p = board.pieceById(pieceId);
+    if (!p)
+        return;
+
+    if (durationMs <= 0)
+    {
+        p->state = PieceState::Idle;
+        return;
+    }
+
+    p->state = kind;
+    activeRests_.push_back(RestWindow{pieceId, startMs, durationMs, kind});
+}
 
 std::vector<Piece> RealTimeArbiter::resolveMoves(Board &board, long elapsedMs, const pieceRules::PieceRulesRegistry &registry)
 {
@@ -34,7 +51,7 @@ std::vector<Piece> RealTimeArbiter::resolveMoves(Board &board, long elapsedMs, c
 
         Piece *mover = board.pieceById(m.pieceId);
         if (!mover)
-            continue; // mover no longer exists (e.g. captured earlier this batch) - nothing to resolve
+            continue;
 
         bool reverseCaptured = false;
         for (const auto &j : activeJumps_)
@@ -44,19 +61,17 @@ std::vector<Piece> RealTimeArbiter::resolveMoves(Board &board, long elapsedMs, c
 
             const Piece *jumper = board.pieceById(j.pieceId);
             if (!jumper || jumper->color == mover->color)
-                continue; // only an enemy jump defends
+                continue;
 
             long jumpEndMs = j.startMs + j.durationMs;
             if (arrivalMs <= jumpEndMs)
             {
-                // the jumper wins: the arriving piece is captured,
-                // the jumper stays exactly where it was (rule 2)
                 mover->state = PieceState::Captured;
                 captured.push_back(*mover);
                 board.removePiece(mover->id);
                 reverseCaptured = true;
             }
-            break; // at most one jump can occupy a given cell
+            break;
         }
         if (reverseCaptured)
             continue;
@@ -72,26 +87,28 @@ std::vector<Piece> RealTimeArbiter::resolveMoves(Board &board, long elapsedMs, c
             board.removePiece(destination->id);
 
             board.movePiece(mover->id, destinationCell);
+            // TODO
+            // הכתרה של חייל למלכה לא אמורה להיות בזמן אמת !
+
             if (Piece *freshMover = board.pieceById(moverId))
             {
-                // TODO
-                // הכתרה של חייל למלכה לא אמורה להיות בזמן אמת !
-                freshMover->state = PieceState::Idle;
                 if (freshMover->kind == 'P' && m.toRow == registry.pawnPromotionRow(freshMover->color, board.rows()))
-                    freshMover->kind = 'Q'; // שימוש ב-freshMover המעודכן מהלוח!
+                    freshMover->kind = 'Q';
+                // CHANGED: was `freshMover->state = PieceState::Idle;`
+                startRest(board, moverId, arrivalMs, config::statsFor(freshMover->kind).longRestMs, PieceState::RestingLong);
             }
         }
         else if (destination == nullptr)
         {
             board.movePiece(mover->id, destinationCell);
-            mover->state = PieceState::Idle;
             if (mover->kind == 'P' && m.toRow == registry.pawnPromotionRow(mover->color, board.rows()))
                 mover->kind = 'Q';
+            startRest(board, mover->id, arrivalMs, config::statsFor(mover->kind).longRestMs, PieceState::RestingLong);
         }
-        // else: friendly piece blocks destination -> move fails, piece stays
-        // at origin and simply returns to Idle (it never actually left).
         else
         {
+            // Friendly piece blocks destination - move failed, no real
+            // move happened, so no cooldown either. Stays Idle.
             mover->state = PieceState::Idle;
         }
     }
@@ -103,28 +120,36 @@ std::vector<Piece> RealTimeArbiter::resolveMoves(Board &board, long elapsedMs, c
     {
         if (elapsedMs >= j.startMs + j.durationMs)
         {
-            // landed: if the piece is still there (wasn't captured mid-air
-            // by a defended arrival above, which already erased it), it
-            // simply returns to Idle - it never moved.
             if (Piece *p = board.pieceById(j.pieceId))
-                p->state = PieceState::Idle;
+                // CHANGED: was `p->state = PieceState::Idle;`
+                startRest(board, p->id, j.startMs + j.durationMs, config::statsFor(p->kind).shortRestMs, PieceState::RestingShort);
             continue;
         }
         stillJumping.push_back(j);
     }
     activeJumps_ = stillJumping;
+
+    std::vector<RestWindow> stillResting;
+    for (const auto &r : activeRests_)
+    {
+        if (elapsedMs >= r.startMs + r.durationMs)
+        {
+            if (Piece *p = board.pieceById(r.pieceId))
+                p->state = PieceState::Idle;
+            continue;
+        }
+        stillResting.push_back(r);
+    }
+    activeRests_ = stillResting;
+
     return captured;
 }
 
 bool RealTimeArbiter::isPieceInFlight(int row, int col) const
 {
     for (const PieceMove &move : activeMoves_)
-    {
         if (move.fromRow == row && move.fromCol == col)
-        {
             return true;
-        }
-    }
     return false;
 }
 
@@ -152,5 +177,37 @@ void RealTimeArbiter::startJump(Board &board, const JumpMove &jump)
 {
     activeJumps_.push_back(jump);
     if (Piece *p = board.pieceById(jump.pieceId))
-        p->state = PieceState::Moving;
+        p->state = PieceState::Jumping; // CHANGED: was Moving
+}
+
+std::optional<PieceMove> RealTimeArbiter::activeMoveForPiece(int pieceId) const
+{
+    for (const PieceMove &m : activeMoves_)
+        if (m.pieceId == pieceId)
+            return m;
+    return std::nullopt;
+}
+
+std::optional<JumpMove> RealTimeArbiter::activeJumpForPiece(int pieceId) const // NEW
+{
+    for (const auto &j : activeJumps_)
+        if (j.pieceId == pieceId)
+            return j;
+    return std::nullopt;
+}
+
+bool RealTimeArbiter::isPieceResting(int pieceId) const // NEW
+{
+    for (const auto &r : activeRests_)
+        if (r.pieceId == pieceId)
+            return true;
+    return false;
+}
+
+std::optional<RestWindow> RealTimeArbiter::activeRestForPiece(int pieceId) const // NEW
+{
+    for (const auto &r : activeRests_)
+        if (r.pieceId == pieceId)
+            return r;
+    return std::nullopt;
 }

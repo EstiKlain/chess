@@ -3,7 +3,7 @@
 #include "realtime/RealTimeArbiter.hpp"
 #include "model/Board.hpp"
 #include "io/BoardParser.hpp"
-
+#include "config.hpp"
 
 static pieceRules::PieceRulesRegistry registry;
 
@@ -249,4 +249,137 @@ TEST_CASE("a jump that receives no enemy lands normally with the board unchanged
 
     CHECK_FALSE(arbiter.hasActiveJumpAt(0, 0));
     CHECK(tokenAt(b, 0, 0) == "bR");
+}
+
+// --- Iteration E: activeMoveForPiece ------------------------------------
+// Read-only lookup GameEngine::snapshot() uses to fill MotionSnapshot.
+// Must return by value (a copy) - never a reference into activeMoves_ -
+// so nothing about RealTimeArbiter/PieceMove leaks past the engine
+// boundary. See RealTimeArbiter.hpp.
+
+TEST_CASE("activeMoveForPiece returns nullopt for a piece with no move in flight")
+{
+    Board b = makeBoard({{"wR", ".", "."}});
+    RealTimeArbiter arbiter;
+    const Piece *rook = b.pieceAt(Position{0, 0});
+    REQUIRE(rook != nullptr);
+
+    CHECK_FALSE(arbiter.activeMoveForPiece(rook->id).has_value());
+}
+
+TEST_CASE("activeMoveForPiece returns nullopt for an id that doesn't exist at all")
+{
+    RealTimeArbiter arbiter;
+    CHECK_FALSE(arbiter.activeMoveForPiece(9999).has_value());
+}
+
+TEST_CASE("activeMoveForPiece returns the in-flight move's exact from/to/timing for a moving piece")
+{
+    Board b = makeBoard({{"wR", ".", ".", "."}});
+    RealTimeArbiter arbiter;
+    const Piece *rook = b.pieceAt(Position{0, 0});
+    REQUIRE(rook != nullptr);
+
+    PieceMove m = makeMove(b, 0, 0, 0, 3, /*startMs*/ 100, /*durationMs*/ 900);
+    arbiter.startMotion(b, m);
+
+    const std::optional<PieceMove> found = arbiter.activeMoveForPiece(rook->id);
+    REQUIRE(found.has_value());
+    CHECK(found->fromRow == 0);
+    CHECK(found->fromCol == 0);
+    CHECK(found->toRow == 0);
+    CHECK(found->toCol == 3);
+    CHECK(found->startMs == 100);
+    CHECK(found->durationMs == 900);
+}
+
+TEST_CASE("activeMoveForPiece stops returning a value once the move has resolved")
+{
+    Board b = makeBoard({{"wR", ".", "."}});
+    RealTimeArbiter arbiter;
+    const Piece *rook = b.pieceAt(Position{0, 0});
+    REQUIRE(rook != nullptr);
+    const int rookId = rook->id;
+
+    PieceMove m = makeMove(b, 0, 0, 0, 2, 0, 500);
+    arbiter.startMotion(b, m);
+    REQUIRE(arbiter.activeMoveForPiece(rookId).has_value());
+
+    arbiter.resolveMoves(b, 600, registry);
+
+    CHECK_FALSE(arbiter.activeMoveForPiece(rookId).has_value());
+}
+
+TEST_CASE("activeMoveForPiece does not confuse two different pieces' in-flight moves")
+{
+    Board b = makeBoard({{"wR", ".", ".", "wB"}});
+    RealTimeArbiter arbiter;
+    const Piece *rook = b.pieceAt(Position{0, 0});
+    const Piece *bishop = b.pieceAt(Position{0, 3});
+    REQUIRE(rook != nullptr);
+    REQUIRE(bishop != nullptr);
+
+    arbiter.startMotion(b, makeMove(b, 0, 0, 0, 1, 0, 500));
+    arbiter.startMotion(b, makeMove(b, 0, 3, 0, 2, 0, 700));
+
+    const auto rookMove = arbiter.activeMoveForPiece(rook->id);
+    const auto bishopMove = arbiter.activeMoveForPiece(bishop->id);
+
+    REQUIRE(rookMove.has_value());
+    REQUIRE(bishopMove.has_value());
+    CHECK(rookMove->toCol == 1);
+    CHECK(rookMove->durationMs == 500);
+    CHECK(bishopMove->toCol == 2);
+    CHECK(bishopMove->durationMs == 700);
+}
+
+TEST_CASE("resolveMoves puts a piece into RestingLong after a move lands")
+{
+    Board b = makeBoard({{"wR", ".", "."}});
+    RealTimeArbiter arbiter;
+    arbiter.startMotion(b, makeMove(b, 0, 0, 0, 2, 0, 500));
+
+    arbiter.resolveMoves(b, 500, registry);
+
+    const Piece *rook = b.pieceAt(Position{0, 2});
+    REQUIRE(rook != nullptr);
+    CHECK(rook->state == PieceState::RestingLong);
+}
+
+TEST_CASE("a piece in RestingLong returns to Idle once its rest window elapses")
+{
+    Board b = makeBoard({{"wR", ".", "."}});
+    RealTimeArbiter arbiter;
+    arbiter.startMotion(b, makeMove(b, 0, 0, 0, 2, 0, 500));
+    arbiter.resolveMoves(b, 500, registry); // lands -> RestingLong
+
+    arbiter.resolveMoves(b, 500 + config::statsFor('R').longRestMs, registry);
+
+    const Piece *rook = b.pieceAt(Position{0, 2});
+    REQUIRE(rook != nullptr);
+    CHECK(rook->state == PieceState::Idle);
+}
+
+TEST_CASE("startJump sets the piece's state to Jumping, not Moving")
+{
+    Board b = makeBoard({{"wR", "."}});
+    RealTimeArbiter arbiter;
+    arbiter.startJump(b, makeJump(b, 0, 0, 0, 1000));
+
+    const Piece *rook = b.pieceAt(Position{0, 0});
+    REQUIRE(rook != nullptr);
+    CHECK(rook->state == PieceState::Jumping);
+}
+
+TEST_CASE("a landed jump puts the piece into RestingShort")
+{
+    Board b = makeBoard({{"bR"}});
+    RealTimeArbiter arbiter;
+    arbiter.startJump(b, makeJump(b, 0, 0, 0, 1000));
+
+    arbiter.resolveMoves(b, 1000, registry);
+
+    const Piece *rook = b.pieceAt(Position{0, 0});
+    REQUIRE(rook != nullptr);
+    CHECK(rook->state == PieceState::RestingShort);
 }

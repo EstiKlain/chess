@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <vector>
 
 #include "realtime/Moves.hpp"
@@ -28,11 +29,19 @@ public:
     // accepted the move.
     void startMotion(Board &board, const PieceMove &move);
 
-    // Jump-side equivalents.
     bool hasActiveJumpAt(int row, int col) const;
     void startJump(Board &board, const JumpMove &jump);
+
+    std::optional<PieceMove> activeMoveForPiece(int pieceId) const;
+    std::optional<JumpMove> activeJumpForPiece(int pieceId) const;
+
+    bool isPieceResting(int pieceId) const;
+    std::optional<RestWindow> activeRestForPiece(int pieceId) const;
 
 private:
     std::vector<PieceMove> activeMoves_;
     std::vector<JumpMove> activeJumps_;
+    std::vector<RestWindow> activeRests_;
+
+    void startRest(Board &board, int pieceId, long startMs, long durationMs, PieceState kind); // NEW
 };

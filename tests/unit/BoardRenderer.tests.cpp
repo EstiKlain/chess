@@ -67,7 +67,7 @@ TEST_CASE("drawBoard draws nothing for a 0x0 board")
 TEST_CASE("drawPieces draws exactly one image per placement, at the right pixel position")
 {
     FakeCanvas canvas;
-    SpriteLoader loader(std::string(PROJECT_ROOT) + "/assets/pieces2");
+    SpriteLoader loader(std::string(PROJECT_ROOT) + "/assets/pieces_classic");
 
     const std::vector<PiecePlacement> placements{
         {"QW", 0, 3},
@@ -84,7 +84,7 @@ TEST_CASE("drawPieces draws exactly one image per placement, at the right pixel 
 TEST_CASE("drawPieces draws nothing for an empty placement list")
 {
     FakeCanvas canvas;
-    SpriteLoader loader(std::string(PROJECT_ROOT) + "/assets/pieces2");
+    SpriteLoader loader(std::string(PROJECT_ROOT) + "/assets/pieces_classic");
     BoardRenderer::drawPieces(canvas, loader, {}, 100);
     CHECK(canvas.drawImageCalls == 0);
 }
@@ -128,4 +128,56 @@ TEST_CASE("drawGameOverOverlay draws text exactly once, and never touches fillRe
     CHECK(canvas.fillRectCalls == 0);
     CHECK(canvas.drawImageCalls == 0);
     CHECK(canvas.lastText == "GAME OVER");
+}
+// --- Iteration E: drawAnimatedPieces -------------------------------------
+// Unlike drawPieces (cell-based, always draws centered in a whole cell),
+// drawAnimatedPieces trusts the pixel position it's given (from
+// PieceAnimator) as-is - including mid-glide positions that fall between
+// cells. These tests use known real sprites under assets/pieces_classic (idle
+// state), same convention as the drawPieces tests above.
+
+TEST_CASE("drawAnimatedPieces draws exactly one image per placement, at its exact pixel position")
+{
+    FakeCanvas canvas;
+    SpriteLoader loader(std::string(PROJECT_ROOT) + "/assets/pieces_classic");
+
+    const std::vector<AnimatedPlacement> placements{
+        {"QW", "idle", 1, 137, 42},
+        {"PB", "idle", 1, 900, 615},
+    };
+
+    BoardRenderer::drawAnimatedPieces(canvas, loader, placements, 100);
+
+    REQUIRE(canvas.drawImageCalls == 2);
+    CHECK(canvas.imagePositions[0] == std::make_pair(137, 42));
+    CHECK(canvas.imagePositions[1] == std::make_pair(900, 615));
+}
+
+TEST_CASE("drawAnimatedPieces draws at a mid-glide pixel position, not snapped to any cell boundary")
+{
+    FakeCanvas canvas;
+    SpriteLoader loader(std::string(PROJECT_ROOT) + "/assets/pieces_classic");
+
+    // 137/42 are deliberately not multiples of cellSize (100) - proves
+    // this path never re-derives a position from row/col, only uses
+    // exactly what the placement carries.
+    const std::vector<AnimatedPlacement> placements{
+        {"QW", "idle", 1, 137, 42},
+    };
+
+    BoardRenderer::drawAnimatedPieces(canvas, loader, placements, 100);
+
+    REQUIRE(canvas.drawImageCalls == 1);
+    CHECK(canvas.imagePositions[0].first == 137);
+    CHECK(canvas.imagePositions[0].second == 42);
+}
+
+TEST_CASE("drawAnimatedPieces draws nothing for an empty placement list")
+{
+    FakeCanvas canvas;
+    SpriteLoader loader(std::string(PROJECT_ROOT) + "/assets/pieces_classic");
+
+    BoardRenderer::drawAnimatedPieces(canvas, loader, {}, 100);
+
+    CHECK(canvas.drawImageCalls == 0);
 }
