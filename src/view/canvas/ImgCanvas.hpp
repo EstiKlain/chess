@@ -19,8 +19,7 @@
 // (fillRect, etc.) and no mutable Mat accessor. So ImgCanvas owns its own
 // frame buffer (a plain cv::Mat) and drives cv::imshow / cv::waitKey(1)
 // itself every frame. Img is left completely untouched; it comes back in
-// UI-Iteration B when SpriteLoader uses Img::read() to load piece frames,
-// which ImgCanvas will then composite onto this same frame buffer.
+
 class ImgCanvas : public ICanvas
 {
 public:
@@ -35,6 +34,10 @@ public:
     bool shouldClose() const override;
 
     void setOnMouseClick(std::function<void(int x, int y)> callback) override;
+    // See ICanvas::setOnRightMouseClick - registers the same OpenCV window
+    // callback (mouseCallbackThunk); the thunk itself decides which of
+    // onClick_ / onRightClick_ to invoke based on which button fired.
+    void setOnRightMouseClick(std::function<void(int x, int y)> callback) override;
 
     void drawText(const std::string &text, int x, int y, const ColorRGB &color) override;
 
@@ -56,4 +59,5 @@ private:
     cv::Mat frame_;
     bool closed_ = false;
     std::function<void(int, int)> onClick_;
+    std::function<void(int, int)> onRightClick_;
 };

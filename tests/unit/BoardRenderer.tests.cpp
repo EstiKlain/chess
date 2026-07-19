@@ -40,6 +40,8 @@ namespace
         void present() override {}
         bool shouldClose() const override { return false; }
         void setOnMouseClick(std::function<void(int, int)>) override {}
+        void setOnRightMouseClick(std::function<void(int, int)>) override {}
+
         void drawText(const std::string &text, int, int, const ColorRGB &) override
         {
             ++drawTextCalls;

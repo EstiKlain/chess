@@ -104,6 +104,12 @@ void ImgCanvas::setOnMouseClick(std::function<void(int, int)> callback)
     cv::setMouseCallback(windowTitle_, &ImgCanvas::mouseCallbackThunk, this);
 }
 
+void ImgCanvas::setOnRightMouseClick(std::function<void(int, int)> callback)
+{
+    onRightClick_ = std::move(callback);
+    cv::setMouseCallback(windowTitle_, &ImgCanvas::mouseCallbackThunk, this);
+}
+
 void ImgCanvas::drawText(const std::string &text, int x, int y, const ColorRGB &color)
 {
     cv::putText(frame_, text, cv::Point(x, y),
@@ -113,10 +119,18 @@ void ImgCanvas::drawText(const std::string &text, int x, int y, const ColorRGB &
 
 void ImgCanvas::mouseCallbackThunk(int event, int x, int y, int /*flags*/, void *userdata)
 {
-    if (event != cv::EVENT_LBUTTONDOWN)
+    auto *self = static_cast<ImgCanvas *>(userdata);
+    if (!self)
         return;
 
-    auto *self = static_cast<ImgCanvas *>(userdata);
-    if (self && self->onClick_)
-        self->onClick_(x, y);
+    if (event == cv::EVENT_LBUTTONDOWN)
+    {
+        if (self->onClick_)
+            self->onClick_(x, y);
+    }
+    else if (event == cv::EVENT_RBUTTONDOWN)
+    {
+        if (self->onRightClick_)
+            self->onRightClick_(x, y);
+    }
 }

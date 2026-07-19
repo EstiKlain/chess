@@ -69,12 +69,14 @@ int main()
         [&](const std::string &pieceCode, const std::string &state) -> AnimationSpec
     {
         const AnimationConfig &config = animConfigLoader.configFor(pieceCode, state);
-        return AnimationSpec{config.framesPerSec, spriteLoader.frameCount(pieceCode, state), config.isLoop}; 
+        return AnimationSpec{config.framesPerSec, spriteLoader.frameCount(pieceCode, state), config.isLoop};
     };
 
     canvas.setOnMouseClick([&controller](int x, int y)
                            { controller.handleClick(x, y); });
 
+    canvas.setOnRightMouseClick([&controller](int x, int y)
+                                { controller.handleJumpClick(x, y); });
     const ColorRGB dark{181, 136, 99};
 
     auto lastFrame = std::chrono::steady_clock::now();
