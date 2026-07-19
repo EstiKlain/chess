@@ -48,6 +48,7 @@ add_executable(chess_gui
     src/app/main_gui.cpp
     src/view/canvas/img.cpp
     src/view/canvas/ImgCanvas.cpp
+    src/view/canvas/WindowMapper.cpp
     src/view/render/BoardGeometry.cpp
     src/view/render/BoardRenderer.cpp
     src/view/render/PiecePlacement.cpp
@@ -96,6 +97,7 @@ add_executable(chess_tests
         tests/unit/SnapshotAdapter.tests.cpp
         tests/unit/Controller.tests.cpp
         tests/unit/BoardMapper.tests.cpp
+        tests/unit/WindowMapper.tests.cpp
         tests/unit/ClickLogger.tests.cpp   
         tests/unit/RealTimeArbiter.tests.cpp
         tests/unit/RuleEngine.tests.cpp
@@ -120,6 +122,7 @@ add_executable(chess_tests
         src/core/rules/PieceRules.cpp
         src/core/texttests/ScriptRunner.cpp
         src/view/canvas/img.cpp
+        src/view/canvas/WindowMapper.cpp
         src/view/render/BoardGeometry.cpp
         src/view/render/BoardRenderer.cpp
         src/view/render/PiecePlacement.cpp

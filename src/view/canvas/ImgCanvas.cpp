@@ -5,7 +5,8 @@ ImgCanvas::ImgCanvas(int width, int height, const std::string &windowTitle)
     : width_(width), height_(height), windowTitle_(windowTitle)
 {
     frame_ = cv::Mat(height_, width_, CV_8UC3);
-    cv::namedWindow(windowTitle_, cv::WINDOW_AUTOSIZE);
+    cv::namedWindow(windowTitle_, cv::WINDOW_NORMAL);
+    cv::resizeWindow(windowTitle_, width_, height_);
 }
 
 ImgCanvas::~ImgCanvas()
