@@ -9,6 +9,71 @@ set(OpenCV_ROOT "${CMAKE_SOURCE_DIR}/OpenCV_451")
 set(OpenCV_INCLUDE_DIRS "${OpenCV_ROOT}/include")
 set(OpenCV_LIB_DIR "${OpenCV_ROOT}/bin")
 
+# --- Server-layer third-party deps (Server-Iteration 1) -------------------
+# All three are fetched at configure/build time - nothing to install by
+# hand, works the same on MSVC and on gcc/clang.
+include(FetchContent)
+
+# Asio (standalone, header-only - NOT Boost.Asio). websocketpp sits on top
+# of it for the actual socket/event-loop work.
+FetchContent_Declare(asio
+    GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+    GIT_TAG asio-1-16-1)
+FetchContent_MakeAvailable(asio)
+# Asio ships no CMake target of its own (only examples) - so we wrap its
+# headers into a tiny INTERFACE target ourselves.
+add_library(asio INTERFACE)
+target_include_directories(asio INTERFACE "${asio_SOURCE_DIR}/asio/include")
+target_compile_definitions(asio INTERFACE ASIO_STANDALONE)
+# MSVC does not report the true __cplusplus value unless told to - without
+# this, websocketpp's internal "are we on C++11?" check fails, and it falls
+# back to its OLD Boost-based code path (hence "boost/aligned_storage.hpp
+# not found", even though we never asked for Boost anywhere). /Zc:__cplusplus
+# fixes the misreport; harmless no-op on gcc/clang.
+target_compile_options(asio INTERFACE $<$<CXX_COMPILER_ID:MSVC>:/Zc:__cplusplus>)
+
+# websocketpp - header-only WebSocket client/server library.
+# NOTE: we deliberately use FetchContent_Populate (not MakeAvailable) here.
+# MakeAvailable would run websocketpp's own CMakeLists.txt via add_subdirectory,
+# and that file unconditionally does find_package(Boost) for building ITS OWN
+# examples/tests - something we never need, since websocketpp is header-only
+# and we wrap it ourselves as an INTERFACE target below. Populate only
+# downloads the source, without ever touching its CMakeLists.txt.
+FetchContent_Declare(websocketpp
+    GIT_REPOSITORY https://github.com/zaphoyd/websocketpp.git
+    GIT_TAG 0.8.2)
+FetchContent_Populate(websocketpp)
+add_library(websocketpp INTERFACE)
+target_include_directories(websocketpp INTERFACE "${websocketpp_SOURCE_DIR}")
+target_link_libraries(websocketpp INTERFACE asio)
+
+# nlohmann::json - single-header JSON library, used for MessageEnvelope.
+FetchContent_Declare(json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3)
+FetchContent_MakeAvailable(json)
+
+# Threads - websocketpp/asio need it on Linux/gcc (harmless no-op on MSVC).
+find_package(Threads REQUIRED)
+
+# --- chess_server: the new server executable (Server-Iteration 1) ---------
+# Iteration 1: proves a message travels client -> server -> client, with
+# no game logic yet (that starts in Iteration 2). See kungfu_chess_server_plan.md.
+add_executable(chess_server
+    src/server/main_server.cpp
+    src/server/protocol/MessageRouter.cpp
+    src/server/infrastructure/bus/InProcessEventBus.cpp
+    src/server/infrastructure/transport/WebSocketTransport.cpp
+    src/server/application/ConnectionManager.cpp
+)
+target_include_directories(chess_server PRIVATE src src/core)
+target_link_libraries(chess_server PRIVATE
+    websocketpp
+    asio
+    nlohmann_json::nlohmann_json
+    Threads::Threads
+)
+
 # --- chess_game: your existing text-mode engine, UNCHANGED ----------------
 add_executable(chess_game
     src/app/main_console.cpp
@@ -147,6 +212,22 @@ add_executable(chess_tests
     )
 
     add_test(NAME chess_tests COMMAND chess_tests)
+
+    add_executable(chess_server_tests
+        tests/unit/server/doctest_main.cpp
+        tests/unit/server/InProcessEventBus.tests.cpp
+        tests/unit/server/MessageRouter.tests.cpp
+        src/server/protocol/MessageRouter.cpp
+        src/server/infrastructure/bus/InProcessEventBus.cpp
+        src/server/application/ConnectionManager.cpp
+    )
+    target_include_directories(chess_server_tests PRIVATE src src/core third_party)
+    target_link_libraries(chess_server_tests PRIVATE
+        nlohmann_json::nlohmann_json
+        Threads::Threads
+    )
+
+    add_test(NAME chess_server_tests COMMAND chess_server_tests)
 endif()
 
 add_executable(img_test
