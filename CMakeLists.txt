@@ -62,9 +62,22 @@ find_package(Threads REQUIRED)
 add_executable(chess_server
     src/server/main_server.cpp
     src/server/protocol/MessageRouter.cpp
+    src/server/protocol/mappers/MoveRequestMapper.cpp
+    src/server/protocol/mappers/GameSnapshotMapper.cpp
     src/server/infrastructure/bus/InProcessEventBus.cpp
     src/server/infrastructure/transport/WebSocketTransport.cpp
     src/server/application/ConnectionManager.cpp
+    src/server/application/GameSession.cpp
+    src/server/application/MakeMoveUseCase.cpp
+    src/core/model/Board.cpp
+    src/core/rules/Movement.cpp
+    src/core/rules/RuleEngine.cpp
+    src/core/rules/GameOverRule.cpp
+    src/core/rules/PieceRules.cpp
+    src/core/realtime/RealTimeArbiter.cpp
+    src/core/io/BoardParser.cpp
+    src/core/io/BoardPrinter.cpp
+    src/core/engine/GameEngine.cpp
 )
 target_include_directories(chess_server PRIVATE src src/core)
 target_link_libraries(chess_server PRIVATE
@@ -73,6 +86,7 @@ target_link_libraries(chess_server PRIVATE
     nlohmann_json::nlohmann_json
     Threads::Threads
 )
+target_compile_definitions(chess_server PRIVATE PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
 
 # --- chess_game: your existing text-mode engine, UNCHANGED ----------------
 add_executable(chess_game
@@ -217,10 +231,31 @@ add_executable(chess_tests
         tests/unit/server/doctest_main.cpp
         tests/unit/server/InProcessEventBus.tests.cpp
         tests/unit/server/MessageRouter.tests.cpp
+        tests/unit/server/Mappers.tests.cpp
+        tests/unit/server/MakeMoveUseCase.tests.cpp
+        tests/unit/server/ConnectionManager.tests.cpp
         src/server/protocol/MessageRouter.cpp
+        src/server/protocol/mappers/MoveRequestMapper.cpp
+        src/server/protocol/mappers/GameSnapshotMapper.cpp
         src/server/infrastructure/bus/InProcessEventBus.cpp
         src/server/application/ConnectionManager.cpp
+        src/server/application/GameSession.cpp
+        src/server/application/MakeMoveUseCase.cpp
+        src/core/model/Board.cpp
+        src/core/rules/Movement.cpp
+        src/core/rules/RuleEngine.cpp
+        src/core/rules/GameOverRule.cpp
+        src/core/rules/PieceRules.cpp
+        src/core/realtime/RealTimeArbiter.cpp
+        src/core/io/BoardParser.cpp
+        src/core/io/BoardPrinter.cpp
+        src/core/engine/GameEngine.cpp
     )
+    # NOTE (Iteration 2 change): unlike Iteration 1, this target now links real
+    # core/ sources - the plan's test doctrine requires MakeMoveUseCase/GameSession
+    # tests to run against a REAL GameEngine (only the ports - IEventBus/ITransport -
+    # are faked). core/ has no OpenCV dependency of its own (only view/ and app/ do),
+    # so this does not pull OpenCV into chess_server_tests.
     target_include_directories(chess_server_tests PRIVATE src src/core third_party)
     target_link_libraries(chess_server_tests PRIVATE
         nlohmann_json::nlohmann_json

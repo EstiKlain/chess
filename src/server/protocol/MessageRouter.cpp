@@ -2,6 +2,7 @@
 
 #include <exception>
 
+#include "server/protocol/Envelope.hpp"
 #include "server/protocol/dto/MessageEnvelope.hpp"
 
 MessageRouter::MessageRouter(IEventBus& bus, ITransport& transport)
@@ -14,16 +15,9 @@ void MessageRouter::handleRawMessage(const std::string& connectionId,
     try {
         envelope = nlohmann::json::parse(rawJson).get<MessageEnvelope>();
     } catch (const std::exception& ex) {
-        nlohmann::json error = {
-            {"type", "ERROR"},
-            {"requestId", ""},
-            {"payload",
-             {
-                 {"code", "INTERNAL_ERROR"},
-                 {"message", std::string("malformed message: ") + ex.what()},
-             }},
-        };
-        transport_.send(connectionId, error.dump());
+        transport_.send(connectionId,
+                         protocol::errorEnvelope("INTERNAL_ERROR",
+                                                  std::string("malformed message: ") + ex.what()));
         return;
     }
 
