@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 class GameSession;
@@ -34,8 +35,8 @@ public:
     /// Looks up which session/color a connection is bound to, if any.
     std::optional<ConnectionBinding> sessionFor(const std::string& connectionId) const;
 
-    /// Lists every connectionId currently bound to the given session (used to fan a STATE_UPDATE out to both players of one game).
-    std::vector<std::string> connectionIdsFor(const GameSession* session) const;
+    /// Lists every (connectionId, binding) pair currently bound to the given session (used to fan a STATE_UPDATE out to both players of one game). Returns bindings directly, not just ids, so callers don't need a second sessionFor() lookup per recipient just to read the color back.
+    std::vector<std::pair<std::string, ConnectionBinding>> connectionsFor(const GameSession* session) const;
 
     /// True if this connection is currently registered.
     bool isConnected(const std::string& connectionId) const;

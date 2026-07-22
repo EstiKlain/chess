@@ -95,8 +95,12 @@ int main() {
         transport.send(event.connectionId, protocol::envelope("PONG", nlohmann::json::object()));
     });
 
-    bus.subscribe("MOVE", [&](const BusEvent& event) { makeMoveUseCase.handleMove(event.connectionId, event.payload); });
-    bus.subscribe("JUMP", [&](const BusEvent& event) { makeMoveUseCase.handleJump(event.connectionId, event.payload); });
+    bus.subscribe("MOVE", [&](const BusEvent& event) {
+        makeMoveUseCase.handleMove(event.connectionId, event.requestId, event.payload);
+    });
+    bus.subscribe("JUMP", [&](const BusEvent& event) {
+        makeMoveUseCase.handleJump(event.connectionId, event.requestId, event.payload);
+    });
 
     // Tick thread: the server-side equivalent of chess_gui's render-loop
     // frame delta (src/app/main_gui.cpp's `while (!canvas.shouldClose())`

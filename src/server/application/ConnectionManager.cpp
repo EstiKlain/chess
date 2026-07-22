@@ -37,14 +37,15 @@ std::optional<ConnectionBinding> ConnectionManager::sessionFor(const std::string
     return it->second;
 }
 
-std::vector<std::string> ConnectionManager::connectionIdsFor(const GameSession* session) const {
-    std::vector<std::string> ids;
+std::vector<std::pair<std::string, ConnectionBinding>> ConnectionManager::connectionsFor(
+    const GameSession* session) const {
+    std::vector<std::pair<std::string, ConnectionBinding>> result;
     for (const auto& [id, binding] : connections_) {
         if (binding.session == session) {
-            ids.push_back(id);
+            result.emplace_back(id, binding);
         }
     }
-    return ids;
+    return result;
 }
 
 bool ConnectionManager::isConnected(const std::string& connectionId) const {

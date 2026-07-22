@@ -8,10 +8,15 @@
 // A single event carried on the bus. "type" matches MessageEnvelope::type
 // (e.g. "PING", "MOVE", later domain events like "MoveApplied").
 // connectionId identifies which network connection this event relates to.
+// requestId is carried through so a handler can correlate its eventual
+// reply with the specific request that triggered it - it means nothing for
+// events with no originating client request (e.g. published domain events
+// like "MoveApplied"), where it is left empty.
 // payload is the envelope's payload, passed through untouched.
 struct BusEvent {
     std::string type;
     std::string connectionId;
+    std::string requestId;
     nlohmann::json payload;
 };
 

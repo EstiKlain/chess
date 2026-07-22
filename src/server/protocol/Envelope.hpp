@@ -4,27 +4,31 @@
 
 #include <nlohmann/json.hpp>
 
-// The `{ "type", "requestId", "payload" }` triple is the one shape every
-// outgoing message shares (PONG, STATE_UPDATE, ERROR, ...) - it belongs to
-// the wire protocol itself, not to any one DTO, so it gets its own shared
-// builder instead of being hand-rolled at each call site (which is exactly
-// what happened before this file existed: PONG and STATE_UPDATE each built
-// their own copy of the same three keys).
 namespace protocol {
 
-/// Wraps a payload in the standard `{ "type", "requestId", "payload" }` envelope as a JSON string, ready to pass to ITransport::send.
-inline std::string envelope(const std::string& type, const nlohmann::json& payload) {
+/// Wraps a payload in the standard `{ "type", "requestId", "payload" }` envelope as a JSON string, ready to pass to ITransport::send. requestId correlates this message with the specific request that caused it - pass "" for messages with no originating request from this recipient (e.g. a bystander's STATE_UPDATE, or PONG).
+inline std::string envelope(const std::string& type, const std::string& requestId, const nlohmann::json& payload) {
     const nlohmann::json message = {
         {"type", type},
-        {"requestId", ""},
+        {"requestId", requestId},
         {"payload", payload},
     };
     return message.dump();
 }
 
-/// Convenience wrapper for the one payload shape used often enough to name: an ERROR envelope with a `{ "code", "message" }` payload.
+/// Convenience overload for the common case of no correlation (PONG, and every other call site until this was requestId-aware).
+inline std::string envelope(const std::string& type, const nlohmann::json& payload) {
+    return envelope(type, "", payload);
+}
+
+/// Convenience wrapper for the one payload shape used often enough to name: an ERROR envelope with a `{ "code", "message" }` payload, correlated to the request that caused it.
+inline std::string errorEnvelope(const std::string& requestId, const std::string& code, const std::string& message) {
+    return envelope("ERROR", requestId, {{"code", code}, {"message", message}});
+}
+
+/// Overload for ERROR envelopes with no originating request to correlate to (e.g. MessageRouter's envelope-level parse failure, where requestId couldn't even be read).
 inline std::string errorEnvelope(const std::string& code, const std::string& message) {
-    return envelope("ERROR", {{"code", code}, {"message", message}});
+    return errorEnvelope("", code, message);
 }
 
 }  // namespace protocol

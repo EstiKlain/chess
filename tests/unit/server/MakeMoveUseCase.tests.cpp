@@ -62,7 +62,7 @@ TEST_CASE("MakeMoveUseCase: a legal MOVE publishes MoveApplied and sends STATE_U
     FakeTransport transport;
     MakeMoveUseCase useCase(bus, transport, connections);
 
-    useCase.handleMove("white-conn",
+    useCase.handleMove("white-conn", "r1",
                         nlohmann::json{{"fromRow", 0}, {"fromCol", 0}, {"toRow", 0}, {"toCol", 3}});
 
     REQUIRE(bus.published.size() == 1);
@@ -78,6 +78,11 @@ TEST_CASE("MakeMoveUseCase: a legal MOVE publishes MoveApplied and sends STATE_U
     const std::string& blackPayload = transport.sent[0].first == "black-conn" ? transport.sent[0].second : transport.sent[1].second;
     CHECK(whitePayload.find("\"role\":\"w\"") != std::string::npos);
     CHECK(blackPayload.find("\"role\":\"b\"") != std::string::npos);
+
+    // requestId correlation: only the mover (white) gets "r1" echoed back -
+    // black never sent this request, so its STATE_UPDATE carries "".
+    CHECK(whitePayload.find("\"requestId\":\"r1\"") != std::string::npos);
+    CHECK(blackPayload.find("\"requestId\":\"\"") != std::string::npos);
 }
 
 TEST_CASE("MakeMoveUseCase: an illegal MOVE sends ERROR/ILLEGAL_MOVE only to the sender") {
@@ -91,13 +96,14 @@ TEST_CASE("MakeMoveUseCase: an illegal MOVE sends ERROR/ILLEGAL_MOVE only to the
     MakeMoveUseCase useCase(bus, transport, connections);
 
     // Off the board - guaranteed illegal regardless of piece-specific rules.
-    useCase.handleMove("white-conn",
+    useCase.handleMove("white-conn", "r2",
                         nlohmann::json{{"fromRow", 99}, {"fromCol", 99}, {"toRow", 0}, {"toCol", 0}});
 
     CHECK(bus.published.empty());
     REQUIRE(transport.sent.size() == 1);
     CHECK(transport.sent[0].first == "white-conn");
     CHECK(transport.sent[0].second.find("ILLEGAL_MOVE") != std::string::npos);
+    CHECK(transport.sent[0].second.find("\"requestId\":\"r2\"") != std::string::npos);
 }
 
 TEST_CASE("MakeMoveUseCase: JUMP uses GameEngine::requestJump's single-position shape, not MOVE's") {
@@ -110,7 +116,7 @@ TEST_CASE("MakeMoveUseCase: JUMP uses GameEngine::requestJump's single-position 
     FakeTransport transport;
     MakeMoveUseCase useCase(bus, transport, connections);
 
-    useCase.handleJump("white-conn", nlohmann::json{{"row", 0}, {"col", 0}});
+    useCase.handleJump("white-conn", "r3", nlohmann::json{{"row", 0}, {"col", 0}});
 
     REQUIRE(bus.published.size() == 1);
     CHECK(bus.published[0].type == "MoveApplied");

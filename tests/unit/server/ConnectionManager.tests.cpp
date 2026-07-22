@@ -47,7 +47,7 @@ TEST_CASE("ConnectionManager: disconnecting frees a color for the next connectio
     CHECK(rejoin.color == 'w');
 }
 
-TEST_CASE("ConnectionManager: sessionFor and connectionIdsFor reflect the bindings made") {
+TEST_CASE("ConnectionManager: sessionFor and connectionsFor reflect the bindings made") {
     ConnectionManager connections;
     GameSession* session = reinterpret_cast<GameSession*>(0x1);
 
@@ -60,5 +60,14 @@ TEST_CASE("ConnectionManager: sessionFor and connectionIdsFor reflect the bindin
     CHECK(binding->color == 'w');
 
     CHECK_FALSE(connections.sessionFor("unknown-conn").has_value());
-    CHECK(connections.connectionIdsFor(session).size() == 2);
+
+    // connectionsFor returns the binding (including color) directly, so a
+    // caller fanning a message out to a session's players never needs a
+    // second sessionFor() lookup per recipient.
+    const auto entries = connections.connectionsFor(session);
+    REQUIRE(entries.size() == 2);
+    for (const auto& [id, entryBinding] : entries) {
+        CHECK(entryBinding.session == session);
+        CHECK((entryBinding.color == 'w' || entryBinding.color == 'b'));
+    }
 }

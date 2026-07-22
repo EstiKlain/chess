@@ -52,6 +52,7 @@ TEST_CASE("MessageRouter: a valid message is published on the bus, not sent dire
     REQUIRE(bus.published.size() == 1);
     CHECK(bus.published[0].type == "PING");
     CHECK(bus.published[0].connectionId == "conn-1");
+    CHECK(bus.published[0].requestId == "r1");
     CHECK(transport.sent.empty());
 }
 

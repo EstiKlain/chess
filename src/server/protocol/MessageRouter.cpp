@@ -21,5 +21,5 @@ void MessageRouter::handleRawMessage(const std::string& connectionId,
         return;
     }
 
-    bus_.publish(BusEvent{envelope.type, connectionId, envelope.payload});
+    bus_.publish(BusEvent{envelope.type, connectionId, envelope.requestId, envelope.payload});
 }

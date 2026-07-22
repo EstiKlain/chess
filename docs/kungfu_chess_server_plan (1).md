@@ -143,6 +143,10 @@ WebSocket/SQLite אמיתיים ב-unit test. IO אמיתי (Sqlite, WS) נבד�
 `AUTH_REQUIRED`, `INVALID_CREDENTIALS`, `ILLEGAL_MOVE`, `NO_MATCH_FOUND`, `ROOM_NOT_FOUND`,
 `SESSION_EXPIRED`, `INTERNAL_ERROR`.
 
+**נוספו בפועל באיטרציה 2 (לא היו ברשימה המקורית - מתועד כאן בדיעבד כדי שהמסמך ישקף את המציאות):**
+- `TABLE_FULL` — חיבור שלישי, בזמן שאין עדיין Play/Room (איטרציות 7-8) שיכולים לקבל אותו לתפקיד צופה.
+- `MALFORMED_PAYLOAD` — payload של MOVE/JUMP חסר שדות/מהצורה הלא נכונה (קלט רע **מהצד השני**). נבדל בכוונה מ-`INTERNAL_ERROR`, ששמור למצב שלא-אמור-לקרות **בצד שלנו** (למשל connectionId לא רשום לשום session).
+
 ---
 
 ## Server-Iteration 1 — תשתית: Bus, Transport, Envelope, Composition Root
