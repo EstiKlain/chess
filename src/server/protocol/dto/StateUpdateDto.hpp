@@ -31,6 +31,18 @@ struct PieceDto {
     std::optional<MotionDto> motion;
 };
 
+// One entry per connection currently bound to the session. id is the
+// connectionId - a stable, player-count-agnostic identity - kept separate
+// from color, which stays the domain-meaningful field (and a plain string,
+// not a fixed wire-enum, so it can grow past 'w'/'b' in future variants
+// without breaking this DTO's shape). Identical for every recipient of a
+// given STATE_UPDATE - only the top-level "role" field below varies.
+struct PlayerDto {
+    std::string id;
+    std::string color;
+    std::string name;
+};
+
 struct StateUpdateDto {
     int rows = 0;
     int cols = 0;
@@ -38,7 +50,13 @@ struct StateUpdateDto {
     bool gameOver = false;
     long nowMs = 0;
     char role = ' ';  // the color this specific recipient plays, 'w' or 'b'
+    std::vector<PlayerDto> players;
 };
+
+/// Serializes a PlayerDto to JSON.
+inline void to_json(nlohmann::json& j, const PlayerDto& d) {
+    j = nlohmann::json{{"id", d.id}, {"color", d.color}, {"name", d.name}};
+}
 
 /// Serializes a MotionDto to JSON.
 inline void to_json(nlohmann::json& j, const MotionDto& d) {
@@ -62,11 +80,12 @@ inline void to_json(nlohmann::json& j, const PieceDto& d) {
     }
 }
 
-/// Serializes a full StateUpdateDto (snapshot + per-recipient role) to JSON.
+/// Serializes a full StateUpdateDto (snapshot + per-recipient role + player roster) to JSON.
 inline void to_json(nlohmann::json& j, const StateUpdateDto& d) {
     j = nlohmann::json{
         {"rows", d.rows}, {"cols", d.cols}, {"pieces", d.pieces},
         {"gameOver", d.gameOver}, {"nowMs", d.nowMs},
         {"role", std::string(1, d.role)},
+        {"players", d.players},
     };
 }

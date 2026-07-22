@@ -12,13 +12,17 @@
 #include "io/BoardParser.hpp"
 #include "model/Board.hpp"
 #include "rules/PieceRules.hpp"
+#include "server/application/AuthGuard.hpp"
 #include "server/application/ConnectionManager.hpp"
 #include "server/application/GameSession.hpp"
+#include "server/application/LoginUseCase.hpp"
 #include "server/application/MakeMoveUseCase.hpp"
 #include "server/config.hpp"
 #include "server/domain_ports/IEventBus.hpp"
+#include "server/domain_ports/IIdentityStore.hpp"
 #include "server/domain_ports/ITransport.hpp"
 #include "server/infrastructure/bus/InProcessEventBus.hpp"
+#include "server/infrastructure/persistence/InMemoryIdentityStore.hpp"
 #include "server/infrastructure/transport/WebSocketTransport.hpp"
 #include "server/protocol/Envelope.hpp"
 #include "server/protocol/MessageRouter.hpp"
@@ -54,10 +58,20 @@ int main() {
     InProcessEventBus bus;
     WebSocketTransport transport;
     ConnectionManager connections;
-    MessageRouter router(bus, transport);
+    InMemoryIdentityStore identities;
+
+    // AuthGuard sits between the real bus and MessageRouter: it enforces
+    // "LOGIN before anything else" without MessageRouter itself ever
+    // learning that authentication exists. MakeMoveUseCase/LoginUseCase and
+    // the PING/MOVE/JUMP/LOGIN subscriptions below are wired to the raw
+    // `bus`, not `authGuard` - they only ever run once a request has already
+    // passed the gate, so wiring them past it again would add nothing.
+    AuthGuard authGuard(bus, identities, transport);
+    MessageRouter router(authGuard, transport);
 
     GameSession session(loadInitialEngine());
-    MakeMoveUseCase makeMoveUseCase(bus, transport, connections);
+    MakeMoveUseCase makeMoveUseCase(bus, transport, connections, identities);
+    LoginUseCase loginUseCase(identities, transport);
 
     // Wiring #1: transport lifecycle -> connection registry. Rejection of a
     // 3rd connection happens HERE, at connect time, not on the first MOVE -
@@ -75,6 +89,13 @@ int main() {
 
     transport.setOnClose([&](const std::string& id) {
         connections.onDisconnected(id);
+        // Two separate calls, deliberately not merged into one
+        // ConnectionManager method: ConnectionManager's one job is
+        // seat/color assignment, and folding identity cleanup into it would
+        // couple two unrelated concerns into one class. Fanning out
+        // disconnect cleanup across collaborators is exactly what a
+        // composition root is for.
+        identities.logout(id);
         std::cout << "[server] connection closed: " << id << " (total: "
                   << connections.connectionCount() << ")\n";
     });
@@ -93,6 +114,10 @@ int main() {
     // there is no domain/core logic behind it at all, just an envelope.
     bus.subscribe("PING", [&](const BusEvent& event) {
         transport.send(event.connectionId, protocol::envelope("PONG", nlohmann::json::object()));
+    });
+
+    bus.subscribe("LOGIN", [&](const BusEvent& event) {
+        loginUseCase.handleLogin(event.connectionId, event.requestId, event.payload);
     });
 
     bus.subscribe("MOVE", [&](const BusEvent& event) {

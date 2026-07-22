@@ -66,9 +66,12 @@ add_executable(chess_server
     src/server/protocol/mappers/GameSnapshotMapper.cpp
     src/server/infrastructure/bus/InProcessEventBus.cpp
     src/server/infrastructure/transport/WebSocketTransport.cpp
+    src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
     src/server/application/ConnectionManager.cpp
     src/server/application/GameSession.cpp
     src/server/application/MakeMoveUseCase.cpp
+    src/server/application/LoginUseCase.cpp
+    src/server/application/AuthGuard.cpp
     src/core/model/Board.cpp
     src/core/rules/Movement.cpp
     src/core/rules/RuleEngine.cpp
@@ -234,13 +237,18 @@ add_executable(chess_tests
         tests/unit/server/Mappers.tests.cpp
         tests/unit/server/MakeMoveUseCase.tests.cpp
         tests/unit/server/ConnectionManager.tests.cpp
+        tests/unit/server/LoginUseCase.tests.cpp
+        tests/unit/server/AuthGuard.tests.cpp
         src/server/protocol/MessageRouter.cpp
         src/server/protocol/mappers/MoveRequestMapper.cpp
         src/server/protocol/mappers/GameSnapshotMapper.cpp
         src/server/infrastructure/bus/InProcessEventBus.cpp
+        src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
         src/server/application/ConnectionManager.cpp
         src/server/application/GameSession.cpp
         src/server/application/MakeMoveUseCase.cpp
+        src/server/application/LoginUseCase.cpp
+        src/server/application/AuthGuard.cpp
         src/core/model/Board.cpp
         src/core/rules/Movement.cpp
         src/core/rules/RuleEngine.cpp

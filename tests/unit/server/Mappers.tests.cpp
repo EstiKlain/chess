@@ -49,8 +49,9 @@ TEST_CASE("GameSnapshotMapper: toJson carries every GameSnapshot field plus the 
     piece.col = 0;
     snapshot.pieces.push_back(piece);
 
-    const nlohmann::json whiteView = GameSnapshotMapper::toJson(snapshot, 'w');
-    const nlohmann::json blackView = GameSnapshotMapper::toJson(snapshot, 'b');
+    const std::vector<PlayerDto> players = {{"conn-w", "w", "Alice"}, {"conn-b", "b", "Bob"}};
+    const nlohmann::json whiteView = GameSnapshotMapper::toJson(snapshot, 'w', players);
+    const nlohmann::json blackView = GameSnapshotMapper::toJson(snapshot, 'b', players);
 
     CHECK(whiteView.at("rows") == 8);
     CHECK(whiteView.at("cols") == 8);
@@ -63,4 +64,23 @@ TEST_CASE("GameSnapshotMapper: toJson carries every GameSnapshot field plus the 
     // The one field that must differ between the two recipients' payloads.
     CHECK(whiteView.at("role") == "w");
     CHECK(blackView.at("role") == "b");
+}
+
+TEST_CASE("GameSnapshotMapper: toJson carries the full players array with id/color/name, identical for every recipient") {
+    GameSnapshot snapshot;
+    snapshot.rows = 8;
+    snapshot.cols = 8;
+
+    const std::vector<PlayerDto> players = {{"conn-w", "w", "Alice"}, {"conn-b", "b", "Bob"}};
+    const nlohmann::json whiteView = GameSnapshotMapper::toJson(snapshot, 'w', players);
+    const nlohmann::json blackView = GameSnapshotMapper::toJson(snapshot, 'b', players);
+
+    REQUIRE(whiteView.at("players").size() == 2);
+    CHECK(whiteView.at("players")[0].at("id") == "conn-w");
+    CHECK(whiteView.at("players")[0].at("color") == "w");
+    CHECK(whiteView.at("players")[0].at("name") == "Alice");
+
+    // The players array itself does not vary per recipient - only the
+    // top-level "role" does.
+    CHECK(whiteView.at("players") == blackView.at("players"));
 }

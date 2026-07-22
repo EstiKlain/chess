@@ -49,7 +49,7 @@ src/
     domain_ports/                 # ports: Application מגדיר, Infrastructure מממש
       IEventBus.hpp
       ITransport.hpp
-      ISessionStore.hpp
+      IIdentityStore.hpp            # בפועל: לא ISessionStore - GameSession כבר תופס את "session"
       IUserRepository.hpp
       IMatchmakingQueue.hpp
       IRoomStore.hpp
@@ -59,6 +59,7 @@ src/
       GameSession.cpp/.hpp         # עוטפת GameEngine אחד לכל משחק
       ConnectionManager.cpp/.hpp
       LoginUseCase.cpp/.hpp
+      AuthGuard.cpp/.hpp           # decorator סביב IEventBus - אוכף LOGIN-לפני-הכל, לא ב-MessageRouter
       MakeMoveUseCase.cpp/.hpp
       DisconnectUseCase.cpp/.hpp
       ReconnectUseCase.cpp/.hpp
@@ -67,7 +68,7 @@ src/
       EloService.cpp/.hpp          # פונקציה טהורה, ניתנת ל-unit test בלי שום port
     infrastructure/
       transport/     WebSocketTransport.cpp/.hpp
-      persistence/    SqliteUserRepository.cpp/.hpp, InMemorySessionStore.cpp/.hpp
+      persistence/    SqliteUserRepository.cpp/.hpp, InMemoryIdentityStore.cpp/.hpp
       matchmaking/    InMemoryMatchmakingQueue.cpp/.hpp
       rooms/          InMemoryRoomStore.cpp/.hpp
       bus/            InProcessEventBus.cpp/.hpp
@@ -77,7 +78,7 @@ src/
       dto/            MessageEnvelope.hpp, LoginDto.hpp, MoveDto.hpp, StateUpdateDto.hpp,
                        PlayDto.hpp, RoomDto.hpp, ErrorDto.hpp, DisconnectDto.hpp
       mappers/        GameSnapshotMapper.cpp/.hpp, MoveRequestMapper.cpp/.hpp
-      MessageRouter.cpp/.hpp       # type -> use-case dispatch
+      MessageRouter.cpp/.hpp       # מפרסר JSON גולמי ומפרסם BusEvent - לא מחליט dispatch לפי type בעצמו; ה-dispatch קורה דרך bus.subscribe(...) ב-main_server.cpp (composition root)
     events/
       GameEvents.hpp                # MoveApplied, GameOver, PlayerDisconnected, PlayerReconnected...
     main_server.cpp                 # Composition Root - כל ה-DI הידני, אין container
@@ -87,7 +88,8 @@ tests/
   unit/server/                   [חדש] טסטים לשכבת השרת בלבד
     EloService.tests.cpp          # טהור, בלי DB/רשת
     MakeMoveUseCase.tests.cpp     # core אמיתי + IEventBus מזויף
-    LoginUseCase.tests.cpp        # ISessionStore מזויף
+    LoginUseCase.tests.cpp        # IIdentityStore מזויף
+    AuthGuard.tests.cpp           # IEventBus עטוף מזויף + IIdentityStore מזויף + ITransport מזויף
     DisconnectReconnect.tests.cpp # IClock מזויף - מתקדמים 19s/20s, בלי sleep אמיתי!
     PlayRequestUseCase.tests.cpp  # IMatchmakingQueue + IClock מזויפים
     RoomUseCase.tests.cpp         # IRoomStore מזויף
@@ -98,7 +100,7 @@ tests/
 ```
 
 **עיקרון בדיקות (כמו אצל המרצה):** כל use-case נבדק עם `core/` **האמיתי** (הוא כבר מכוסה
-ובדוק) ועם **fakes** לכל ה-ports (Bus/Clock/SessionStore/Queue/RoomStore) - לעולם לא עם
+ובדוק) ועם **fakes** לכל ה-ports (Bus/Clock/IdentityStore/Queue/RoomStore) - לעולם לא עם
 WebSocket/SQLite אמיתיים ב-unit test. IO אמיתי (Sqlite, WS) נבדק רק ב-`integration/`, מעטים
 ומוגדרים בבירור.
 
@@ -124,13 +126,19 @@ WebSocket/SQLite אמיתיים ב-unit test. IO אמיתי (Sqlite, WS) נבד�
 
 מעטפת אחידה לכל הודעה, בשני הכיוונים:
 ```json
-{ "type": "MOVE", "requestId": "uuid", "payload": { "from": "e2", "to": "e5" } }
+{ "type": "MOVE", "requestId": "uuid", "payload": { "fromRow": 1, "fromCol": 4, "toRow": 3, "toCol": 4 } }
 ```
+**תוקן בפועל באיטרציה 2 (לא היה ברור עדיין כשהטבלה הזאת נכתבה לראשונה):** אין notation אלגברי
+("e2"/"e4") בשום מקום ב-`core/`/`view/` - `BoardMapper::pixelToCell` כבר ממיר פיקסלים ישר ל-`Position{row,col}`
+מספרי, בלי שלב אותיות/files. לכן ה-DTO-ים נושאים קואורדינטות מספריות גולמיות, לא מחרוזת algebraic.
+`JumpDto{row,col}` הוא **DTO נפרד** מ-`MoveDto{fromRow,fromCol,toRow,toCol}`, לא אותה צורה -
+`GameEngine::requestJump(row,col)` מקבל מיקום בודד, לא זוג {from,to}.
 
 | type | כיוון | payload |
 |---|---|---|
 | `LOGIN` | client->server | `{ username }` -> `{ username, password }` (איטרציה 6) |
-| `MOVE` / `JUMP` | client->server | `{ from, to }` |
+| `MOVE` | client->server | `{ fromRow, fromCol, toRow, toCol }` |
+| `JUMP` | client->server | `{ row, col }` - **לא** `{from,to}`, ראו הערה למעלה |
 | `STATE_UPDATE` | server->client | `GameSnapshot` ממופה ל-JSON, + `role` (player/viewer) |
 | `PLAY` | client->server | `{}` |
 | `MATCH_FOUND` / `NO_MATCH_FOUND` | server->client | `{ opponent, color }` / `{}` |
@@ -194,17 +202,55 @@ Round-trip ל-Mappers: Domain->DTO->JSON->DTO->Domain שווה למקור. יד�
 
 **מטרה:** קליינט מזדהה בשם; השרת משייך שם לחיבור; שני השמות מוצגים על המסך.
 
-**מוקד:** `LOGIN` חייב לקרות לפני כל `type` אחר (`AUTH_REQUIRED` guard ב-`MessageRouter`).
-קלט הטקסט בקליינט הוא **shell/console בלבד** (`AllocConsole` + `std::cin`) - לא GUI, בדיוק
-כפי שהוגדר בשקף.
+**מוקד:** `LOGIN` חייב לקרות לפני כל `type` אחר. **תוקן בפועל בעת המימוש (לא כפי שנוסח כאן
+במקור):** ה-guard **אינו** בתוך `MessageRouter` - `MessageRouter` נשאר "טיפש" לגמרי (מפרסר+מפרסם
+בלבד, בלי לדעת שאימות בכלל קיים), בדיוק לפי טבלת הבעלות-שכבות למעלה. האכיפה חיה במחלקה נפרדת,
+`AuthGuard`, שמממשת בעצמה `IEventBus` ועוטפת (decorator) את ה-bus האמיתי - מחוברת בין
+`InProcessEventBus` ל-`MessageRouter` ב-`main_server.cpp` (composition root). קלט הטקסט בקליינט
+הוא **shell/console בלבד** (`AllocConsole` + `std::cin`) - לא GUI, בדיוק כפי שהוגדר בשקף.
 
-**מחלקות/קבצים:** `LoginUseCase`, `ISessionStore` + `InMemorySessionStore`, `LoginDto`.
+**מחלקות/קבצים:** `LoginUseCase`, `AuthGuard`, `IIdentityStore` + `InMemoryIdentityStore`, `LoginDto`.
+(שם ה-port הוא `IIdentityStore`, לא `ISessionStore` כפי שנוסח כאן במקור - `GameSession` כבר
+תופס את המשמעות "session" בקוד הקיים, לא כדאי לשם השני להתנגש בו.)
 
 **התנהגות נדרשת:** קליינט פותח קונסולה, מבקש username, שולח `LOGIN`; השרת שומר session;
 ה-HUD (הרנדרר הקיים) מציג את שני השמות מתוך `STATE_UPDATE` מורחב.
 
-**בדיקות:** `LoginUseCase` - username ריק נדחה; פקודה שנשלחת לפני `LOGIN` מחזירה
-`AUTH_REQUIRED`.
+**נמצא בביקורת לאחר המימוש (לא תוקן באיטרציה זו, ראו Iteration 3.5):** השורה למעלה לא ניתנת
+למימוש בפועל - אין עדיין שום `client_net/ServerConnection`, ו-`main_gui.cpp` אף פעם לא מתוזמן
+לשינוי באף איטרציה. מה שנבנה ונבדק ב-Iteration 3 הוא **צד השרת בלבד** - `LOGIN`/`AuthGuard`/
+`players[]` - מאומת דרך JSON גולמי על WebSocket (ראו הבדיקה הידנית ב-`CLAUDE.md`), לא דרך ה-HUD
+האמיתי. סגירת הפער הזה היא בדיוק מה ש-Iteration 3.5 (למטה) קיימת בשבילו.
+
+**בדיקות:** `LoginUseCase` - username ריק (או חסר) נדחה עם `MALFORMED_PAYLOAD`; login חוזר על
+אותו connectionId מחליף את השם הקודם. `AuthGuard` - `LOGIN`/`PING` עוברים גם בלי login; `type`
+אחר בלי login מחזיר `AUTH_REQUIRED` ישירות דרך `ITransport` ולא מגיע ל-bus האמיתי; `type` אחר
+עם login מועבר הלאה; `subscribe()` מועבר לבוס העטוף ללא שינוי.
+
+---
+
+## Server-Iteration 3.5 — לקוח מחובר לרשת (Networked GUI Client)
+
+**נוספה בביקורת תכנון מלאה שנעשתה אחרי Iteration 3** (לא הייתה בתוכנית המקורית - נוספה בדיעבד
+כדי לשקף פער אמיתי: אף איטרציה מ-1 עד 9 לא הייתה מתזמנת אי-פעם את בניית `ServerConnection` או
+שינוי `main_gui.cpp`, למרות ש-Iteration 3 (ותכן גם 4/5/8) מניחות בשקט שהם כבר קיימים).
+
+**מטרה:** `chess_gui` (ה-GUI האמיתי, לא קליינט-בדיקה של JSON גולמי) משחק בפועל מול `chess_server`
+על הרשת, במקום מול `GameEngine` לוקאלי.
+
+**מוקד/היקף גס (התכנון המפורט נדחה בכוונה לשיחת תכנון ייעודית, באותו אופן שבו Iteration 3
+תוכננה):** `client_net/ServerConnection` - מממשת את מה ש-`Controller` הקיים כבר מצפה לו
+(`requestMove`/`requestJump`), אבל שולחת JSON על WebSocket במקום לקרוא ל-`GameEngine` ישירות.
+שינוי ב-`main_gui.cpp` כדי להשתמש ב-`ServerConnection` (השורה בפריסת התיקיות שאומרת "ישונה
+בהמשך" - זה ה"בהמשך"). קונסולה (`AllocConsole`+`std::cin`) לבקשת username ושליחת `LOGIN` - בדיוק
+כפי שכבר מתואר (אך לא מומש) ב-Iteration 3. הרחבת ה-HUD/renderer לצייר את `players[]` (השרת כבר
+שולח את זה, מאומת ב-Iteration 3 - זה רק צד הציור).
+
+**חייב לקרות לפני Iteration 4:** Iteration 4's `ClientLogger` עוטפת `ServerConnection` - בלי
+Iteration 3.5, Iteration 4 לא ניתנת למימוש כפי שהיא כתובה.
+
+**מספור:** נשארת "3.5", לא renumber לכל האיטרציות 4-9 - שינוי מספור היה נוגע בכל הפניה צולבת
+בקובץ (טבלת הפרוטוקול, יומן ה-CR ב-`CLAUDE.md` וכו') בלי תועלת פונקציונלית.
 
 ---
 
@@ -213,7 +259,8 @@ Round-trip ל-Mappers: Domain->DTO->JSON->DTO->Domain שווה למקור. יד�
 **מטרה:** כל הודעה שנשלחת/מתקבלת נרשמת לקובץ, גם בשרת גם בקליינט, באותו פורמט.
 
 **מוקד:** `Logger` הוא **subscriber** על ה-`IEventBus` בשרת (לא קריאה ישירה מכל use-case).
-בקליינט - `ClientLogger` עוטף את `ServerConnection`.
+בקליינט - `ClientLogger` עוטף את `ServerConnection` (התלות הזאת מסופקת ע"י Iteration 3.5, שקודמת
+לאיטרציה זו בדיוק בשביל זה).
 
 **מחלקות/קבצים:** `ILogger` + `FileLogger`, `ClientLogger` (ב-`client_net/`).
 
@@ -242,6 +289,10 @@ Round-trip ל-Mappers: Domain->DTO->JSON->DTO->Domain שווה למקור. יד�
 20s מתחיל <- `DISCONNECT_COUNTDOWN` משודר ליריב <- reconnect לפני 0 מבטל ומחזיר `STATE_UPDATE`
 עדכני; אחרת - resign אוטומטי דרך `GameEngine`.
 
+**נמצא בביקורת:** "ספירה לאחור **על המסך**" ברישא למעלה היא רינדור client-side - מוצג דרך הרחבת
+ה-HUD שנבנתה ב-Iteration 3.5, לא מחלקה חדשה. התכנון המדויק (איפה בדיוק ב-HUD, איך מתעדכן כל
+שנייה) נדחה לשיחת התכנון של איטרציה זו עצמה, לא מוכרע כאן.
+
 **בדיקות:** עם fake clock - מתקדמים 19s + `RECONNECT` => מתבטל; מתקדמים 20s בלי `RECONNECT` =>
 resign.
 
@@ -258,6 +309,16 @@ resign.
 
 **התנהגות נדרשת:** הרשמה אם המשתמש לא קיים, אימות סיסמה אם קיים; דירוג מתעדכן **רק** בסיום
 משחק שמקורו ב-Play (Room הוחלט כ-unranked - ראו איטרציה 8).
+
+**שאלות פתוחות שנמצאו בביקורת (להכריע כשמתחילים לתכנן איטרציה זו, לא עכשיו):**
+- **`IIdentityStore` מול `IUserRepository`:** Iteration 3 בנתה `IIdentityStore`/`InMemoryIdentityStore`
+  (connectionId->username בזיכרון, בלי סיסמה). איטרציה זו מוסיפה `IUserRepository`/DB אמיתי ומשנה
+  את payload ה-`LOGIN` (מוסיפה `password`). לא הוכרע: `IIdentityStore` מוחלף, נשאר כ-cache
+  ברמת-חיבור מעל `IUserRepository`, או שניהם ממשיכים לחיות זה לצד זה? כך או כך `LoginUseCase`
+  (מ-Iteration 3) יזדקק לעריכה - זה לא רשום כקובץ שאיטרציה זו נוגעת בו, וצריך להיות.
+- **מי קורא ל-`EloService::apply(...)` ומתי:** לא מצוין באף איטרציה (6, 7, או 9) איזה use-case
+  בדיוק מזהה "סיום משחק שמקורו ב-Play" ומפעיל את חישוב ה-Elo, ואיך `GameSession` בכלל "יודע"
+  שהוא Play-origin ולא Room-origin (`GameSession` כפי שנבנה ב-Iteration 2 אין לו שדה כזה).
 
 **בדיקות:** `EloService` - unit tests טהורים עם וקטור מקרים ידועים (1200 מול 1200; 1200
 מנצח 1600 וכו'), בלי DB בכלל. `SqliteUserRepository` - integration test על DB זמני.
@@ -276,6 +337,15 @@ resign.
 חדש ושולח `MATCH_FOUND` לשניהם עם צבע - מי שהמתין יותר זמן מקבל **לבן** (הוסכם). אין match
 תוך דקה => `NO_MATCH_FOUND`.
 
+**שאלות פתוחות שנמצאו בביקורת (להכריע כשמתחילים לתכנן איטרציה זו, לא עכשיו):**
+- **`TABLE_FULL` מול matchmaking:** Iteration 2 דוחה חיבור שלישי עם `TABLE_FULL` במפורש "כי אין
+  עדיין Play/Room" - אבל עכשיו שיש, לא מצוין מה קורה לחיבור חדש: הוא נכנס לתור matchmaking
+  במקום להידחות? צריך להחליט ולתעד את השינוי בהתנהגות הקבלה של `ConnectionManager`.
+- **תור ה-tick היחיד:** ה-thread ב-`main_server.cpp` שקורא `session.wait(deltaMs)` היום מכיר
+  `GameSession` **אחד קשיח** (משתנה `main()`-local). ברגע ש-`MATCH_FOUND` יוצר `GameSession`ים
+  נוספים בו-זמנית, הלולאה הזאת חייבת להכליל את כולם (ראו את הסיכון המתועד כבר ב-`CLAUDE.md`,
+  "Deferred, deliberately" ב-Iteration 2) - צריך תכנון מפורש כאן, לא נשאר סתום.
+
 **בדיקות:** fake clock מתקדם ל-59s/61s, עם "שחקנים ממתינים" מזויפים בטווחי Elo שונים.
 
 ---
@@ -293,6 +363,10 @@ resign.
 **התנהגות נדרשת:** Create מייצר room-id, מוצג בראש המסך (רנדור בצד קליינט); Join לפי id
 שהוקלד. שני הראשונים = לבן/שחור, כל הבאים = `viewer` (תפקיד מועבר ב-`STATE_UPDATE`).
 
+**נמצא בביקורת:** "מוצג בראש המסך" הוא רינדור client-side, דרך הרחבת ה-HUD מ-Iteration 3.5
+(אותה תשתית ציור, לא מחלקה חדשה) - `WindowsInputDialog` למעלה הוא ל**קלט** (Create/Join), לא
+לפלט הזה.
+
 **בדיקות:** `RoomUseCase` - הצטרפות ראשונה/שנייה/שלישית => תפקידים נכונים; `JOIN` ל-id לא קיים
 => `ROOM_NOT_FOUND`. `WindowsInputDialog` - לא ניתן ל-unit test אמיתי (כמו UI-Iteration A שלך);
 smoke test ידני בלבד.
@@ -301,11 +375,17 @@ smoke test ידני בלבד.
 
 ## Server-Iteration 9 — סאונד + אנימציות start/end דרך ה-Bus
 
-**מטרה:** להשלים את שקף ה-BUS - עוד subscribers, בלי לגעת בשום use-case קיים.
+**מטרה:** להשלים את שקף ה-BUS - עוד subscribers חדשים, בלי לגעת בלוגיקת ה-subscriber-ים הקיימים.
 
 **מוקד:** `SoundSubscriber`, `GameLifecycleAnimationSubscriber` - שניהם subscribers חדשים על
 ה-`IEventBus` הקיים מאיטרציה 1. השרת רק משדר את האירוע (`GameStarted`/`GameOver`) כ-DTO;
 ניגון הסאונד/האנימציה עצמם הם עניין של הקליינט.
+
+**תוקן בביקורת:** "בלי לגעת בשום use-case קיים" (כפי שהיה כתוב במקור) לא מדויק - `GameStarted`/
+`GameOver` לא מתפרסמים היום ע"י שום use-case קיים (`MakeMoveUseCase` מפרסם רק `MoveApplied`), אז
+מישהו חייב לקבל `bus_.publish(...)` חדש כדי שהאירועים האלה יתחילו להתקיים בכלל - כנראה `GameSession`
+(סיום) ו/או המקום שיוצר `GameSession` חדש (התחלה, Iteration 2 או 7). מה שבאמת חדש ב-Iteration 9
+הוא ה**subscriber** בלבד - צד ה-publish דורש עריכה קטנה במקום קיים, לא "בלי לגעת" לגמרי.
 
 **בדיקות:** subscribers עם bus מזויף שסופר קריאות (כמו UI-Iteration F שלך).
 

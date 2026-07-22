@@ -38,13 +38,14 @@ PieceDto toPieceDto(const PieceSnapshot& piece) {
 
 namespace GameSnapshotMapper {
 
-nlohmann::json toJson(const GameSnapshot& snapshot, char recipientColor) {
+nlohmann::json toJson(const GameSnapshot& snapshot, char recipientColor, const std::vector<PlayerDto>& players) {
     StateUpdateDto dto;
     dto.rows = snapshot.rows;
     dto.cols = snapshot.cols;
     dto.gameOver = snapshot.gameOver;
     dto.nowMs = snapshot.nowMs;
     dto.role = recipientColor;
+    dto.players = players;
 
     dto.pieces.reserve(snapshot.pieces.size());
     for (const PieceSnapshot& piece : snapshot.pieces) {

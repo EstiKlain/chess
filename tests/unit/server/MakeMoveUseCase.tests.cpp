@@ -1,6 +1,8 @@
 #include "doctest.h"
 
+#include <optional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -12,6 +14,7 @@
 #include "server/application/GameSession.hpp"
 #include "server/application/MakeMoveUseCase.hpp"
 #include "server/domain_ports/IEventBus.hpp"
+#include "server/domain_ports/IIdentityStore.hpp"
 #include "server/domain_ports/ITransport.hpp"
 
 namespace {
@@ -40,6 +43,23 @@ public:
     std::vector<std::pair<std::string, std::string>> sent;
 };
 
+class FakeIdentityStore : public IIdentityStore {
+public:
+    void login(const std::string& connectionId, const std::string& username) override {
+        names_[connectionId] = username;
+    }
+    bool isLoggedIn(const std::string& connectionId) const override { return names_.count(connectionId) > 0; }
+    std::optional<std::string> usernameFor(const std::string& connectionId) const override {
+        const auto it = names_.find(connectionId);
+        if (it == names_.end()) return std::nullopt;
+        return it->second;
+    }
+    void logout(const std::string& connectionId) override { names_.erase(connectionId); }
+
+private:
+    std::unordered_map<std::string, std::string> names_;
+};
+
 Board makeBoard(std::initializer_list<std::initializer_list<std::string>> rows) {
     RawBoard raw;
     for (const auto& row : rows) {
@@ -60,7 +80,10 @@ TEST_CASE("MakeMoveUseCase: a legal MOVE publishes MoveApplied and sends STATE_U
 
     FakeEventBus bus;
     FakeTransport transport;
-    MakeMoveUseCase useCase(bus, transport, connections);
+    FakeIdentityStore identities;
+    identities.login("white-conn", "Alice");
+    identities.login("black-conn", "Bob");
+    MakeMoveUseCase useCase(bus, transport, connections, identities);
 
     useCase.handleMove("white-conn", "r1",
                         nlohmann::json{{"fromRow", 0}, {"fromCol", 0}, {"toRow", 0}, {"toCol", 3}});
@@ -83,6 +106,12 @@ TEST_CASE("MakeMoveUseCase: a legal MOVE publishes MoveApplied and sends STATE_U
     // black never sent this request, so its STATE_UPDATE carries "".
     CHECK(whitePayload.find("\"requestId\":\"r1\"") != std::string::npos);
     CHECK(blackPayload.find("\"requestId\":\"\"") != std::string::npos);
+
+    // players[] is identical for both recipients and carries both names.
+    CHECK(whitePayload.find("\"name\":\"Alice\"") != std::string::npos);
+    CHECK(whitePayload.find("\"name\":\"Bob\"") != std::string::npos);
+    CHECK(blackPayload.find("\"name\":\"Alice\"") != std::string::npos);
+    CHECK(blackPayload.find("\"name\":\"Bob\"") != std::string::npos);
 }
 
 TEST_CASE("MakeMoveUseCase: an illegal MOVE sends ERROR/ILLEGAL_MOVE only to the sender") {
@@ -93,7 +122,10 @@ TEST_CASE("MakeMoveUseCase: an illegal MOVE sends ERROR/ILLEGAL_MOVE only to the
 
     FakeEventBus bus;
     FakeTransport transport;
-    MakeMoveUseCase useCase(bus, transport, connections);
+    FakeIdentityStore identities;
+    identities.login("white-conn", "Alice");
+    identities.login("black-conn", "Bob");
+    MakeMoveUseCase useCase(bus, transport, connections, identities);
 
     // Off the board - guaranteed illegal regardless of piece-specific rules.
     useCase.handleMove("white-conn", "r2",
@@ -114,7 +146,10 @@ TEST_CASE("MakeMoveUseCase: JUMP uses GameEngine::requestJump's single-position 
 
     FakeEventBus bus;
     FakeTransport transport;
-    MakeMoveUseCase useCase(bus, transport, connections);
+    FakeIdentityStore identities;
+    identities.login("white-conn", "Alice");
+    identities.login("black-conn", "Bob");
+    MakeMoveUseCase useCase(bus, transport, connections, identities);
 
     useCase.handleJump("white-conn", "r3", nlohmann::json{{"row", 0}, {"col", 0}});
 

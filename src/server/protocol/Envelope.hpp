@@ -4,6 +4,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "server/domain_ports/ITransport.hpp"
+
 namespace protocol {
 
 /// Wraps a payload in the standard `{ "type", "requestId", "payload" }` envelope as a JSON string, ready to pass to ITransport::send. requestId correlates this message with the specific request that caused it - pass "" for messages with no originating request from this recipient (e.g. a bystander's STATE_UPDATE, or PONG).
@@ -29,6 +31,12 @@ inline std::string errorEnvelope(const std::string& requestId, const std::string
 /// Overload for ERROR envelopes with no originating request to correlate to (e.g. MessageRouter's envelope-level parse failure, where requestId couldn't even be read).
 inline std::string errorEnvelope(const std::string& code, const std::string& message) {
     return errorEnvelope("", code, message);
+}
+
+/// Sends an ERROR envelope to one connection only, correlated to its requestId. Introduced to avoid LoginUseCase, AuthGuard, and MakeMoveUseCase each independently duplicating this same "build an error envelope, send it" pair.
+inline void sendError(ITransport& transport, const std::string& connectionId, const std::string& requestId,
+                       const std::string& code, const std::string& message) {
+    transport.send(connectionId, errorEnvelope(requestId, code, message));
 }
 
 }  // namespace protocol
