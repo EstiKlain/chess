@@ -72,6 +72,7 @@ add_executable(chess_server
     src/server/application/MakeMoveUseCase.cpp
     src/server/application/LoginUseCase.cpp
     src/server/application/AuthGuard.cpp
+    src/server/application/StateFanOut.cpp
     src/core/model/Board.cpp
     src/core/rules/Movement.cpp
     src/core/rules/RuleEngine.cpp
@@ -121,13 +122,17 @@ add_custom_command(TARGET chess_game POST_BUILD
         "$<TARGET_FILE_DIR:chess_game>"
 )
 
-# --- chess_gui: the real GUI, wired to GameEngine/Controller as of ---------
-# Iteration D. Iterations A-C deliberately did NOT link model/rules/engine
-# sources (they drew from a flat CSV, no logic at all); this target's
-# source list now includes the same core/ sources chess_game (text mode)
-# links, so both executables share one GameEngine, not two.
+# --- chess_gui: the real GUI, now a networked client (Server-Iteration ----
+# 3.5) - main_gui.cpp no longer constructs a local GameEngine at all, so
+# the rule-engine sources it used to link (GameEngine/RuleEngine/
+# RealTimeArbiter/PieceRules/Movement/GameOverRule/BoardParser/BoardPrinter)
+# are dropped here - that logic now lives only in chess_server. Board
+# itself is still needed (Controller's click hit-testing against a
+# network-synced mirror board), so core/model/Board.cpp + BoardMapper stay.
 add_executable(chess_gui
     src/app/main_gui.cpp
+    src/client_net/ServerConnection.cpp
+    src/client_net/WebSocketClientLink.cpp
     src/view/canvas/img.cpp
     src/view/canvas/ImgCanvas.cpp
     src/view/canvas/WindowMapper.cpp
@@ -138,24 +143,23 @@ add_executable(chess_gui
     src/view/render/PieceAnimator.cpp
     src/view/assets/SpriteLoader.cpp
     src/view/assets/AnimationConfig.cpp
+    src/view/hud/PlayerNamesHud.cpp
     src/core/input/BoardMapper.cpp
     src/core/input/Controller.cpp
     src/core/model/Board.cpp
-    src/core/rules/Movement.cpp
-    src/core/rules/RuleEngine.cpp
-    src/core/rules/GameOverRule.cpp
-    src/core/rules/PieceRules.cpp
-    src/core/realtime/RealTimeArbiter.cpp
-    src/core/io/BoardParser.cpp
-    src/core/io/BoardPrinter.cpp
-    src/core/engine/GameEngine.cpp
     src/view/input/ClickLogger.cpp
+    src/server/protocol/mappers/GameSnapshotMapper.cpp
+    src/server/protocol/mappers/MoveRequestMapper.cpp
 )
 target_include_directories(chess_gui PRIVATE src src/core ${OpenCV_INCLUDE_DIRS})
 target_link_directories(chess_gui PRIVATE ${OpenCV_LIB_DIR})
 target_link_libraries(chess_gui PRIVATE
     debug opencv_world451d
     optimized opencv_world451
+    websocketpp
+    asio
+    nlohmann_json::nlohmann_json
+    Threads::Threads
 )
 target_compile_definitions(chess_gui PRIVATE PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
 
@@ -249,6 +253,7 @@ add_executable(chess_tests
         src/server/application/MakeMoveUseCase.cpp
         src/server/application/LoginUseCase.cpp
         src/server/application/AuthGuard.cpp
+        src/server/application/StateFanOut.cpp
         src/core/model/Board.cpp
         src/core/rules/Movement.cpp
         src/core/rules/RuleEngine.cpp
@@ -271,6 +276,29 @@ add_executable(chess_tests
     )
 
     add_test(NAME chess_server_tests COMMAND chess_server_tests)
+
+    # --- chess_client_tests: client_net/ tests (Server-Iteration 3.5) -------
+    # Its own target, not folded into chess_server_tests or chess_tests:
+    # client_net/ has yet another dependency footprint - no OpenCV (unlike
+    # chess_tests), and no websocketpp/asio (unlike chess_server_tests,
+    # and unlike chess_gui itself) since ServerConnection is tested through
+    # the IServerLink fake, never a real socket. WebSocketClientLink.cpp
+    # (the concrete websocketpp adapter) is deliberately NOT linked here,
+    # mirroring how chess_server_tests never links WebSocketTransport.cpp.
+    add_executable(chess_client_tests
+        tests/unit/client_net/doctest_main.cpp
+        tests/unit/client_net/ServerConnection.tests.cpp
+        src/client_net/ServerConnection.cpp
+        src/server/protocol/mappers/GameSnapshotMapper.cpp
+        src/server/protocol/mappers/MoveRequestMapper.cpp
+    )
+    target_include_directories(chess_client_tests PRIVATE src src/core third_party)
+    target_link_libraries(chess_client_tests PRIVATE
+        nlohmann_json::nlohmann_json
+        Threads::Threads
+    )
+
+    add_test(NAME chess_client_tests COMMAND chess_client_tests)
 endif()
 
 add_executable(img_test

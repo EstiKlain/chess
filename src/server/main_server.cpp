@@ -17,6 +17,7 @@
 #include "server/application/GameSession.hpp"
 #include "server/application/LoginUseCase.hpp"
 #include "server/application/MakeMoveUseCase.hpp"
+#include "server/application/StateFanOut.hpp"
 #include "server/config.hpp"
 #include "server/domain_ports/IEventBus.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
@@ -130,12 +131,21 @@ int main() {
     // Tick thread: the server-side equivalent of chess_gui's render-loop
     // frame delta (src/app/main_gui.cpp's `while (!canvas.shouldClose())`
     // loop) - measures real elapsed time and advances the game clock via
-    // the same GameEngine::wait(ms) that loop already calls. No drawing
-    // here (that's the client's job from STATE_UPDATE), so this is the only
-    // responsibility this thread has. Detached: the process has no graceful
-    // shutdown path yet (transport.stop() is never called anywhere today),
-    // so there is nothing meaningful to join on.
-    std::thread([&session]() {
+    // the same GameEngine::wait(ms) that loop already calls, THEN broadcasts
+    // the resulting state to every connection. The broadcast half was added
+    // after Iteration 3.5 manual testing showed STATE_UPDATE was only ever
+    // sent from LOGIN/MOVE/JUMP - discrete events - so a networked client's
+    // view of an in-flight motion never advanced between those events (no
+    // animation, and a move's own visual effect only appeared once the NEXT
+    // move triggered a fresh STATE_UPDATE). Broadcasting every tick, not
+    // only on request-triggered events, is what makes the client's snapshot
+    // (and its nowMs) advance continuously, the same way the local build's
+    // per-frame engine.snapshot() call always did. Not correlated to any
+    // request, so ("", "") - same convention already used by the
+    // StateFanOut call after a successful login. Detached: the process has
+    // no graceful shutdown path yet (transport.stop() is never called
+    // anywhere today), so there is nothing meaningful to join on.
+    std::thread([&session, &connections, &identities, &transport]() {
         auto lastTick = std::chrono::steady_clock::now();
         while (true) {
             std::this_thread::sleep_for(std::chrono::milliseconds(server_config::kTickIntervalMs));
@@ -144,6 +154,7 @@ int main() {
                 static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(now - lastTick).count());
             lastTick = now;
             session.wait(deltaMs);
+            StateFanOut::broadcast(session, connections, identities, transport, "", "");
         }
     }).detach();
 

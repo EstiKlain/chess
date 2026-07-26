@@ -1,13 +1,12 @@
 #include "server/application/MakeMoveUseCase.hpp"
 
 #include <exception>
-#include <vector>
 
 #include "server/application/GameSession.hpp"
+#include "server/application/StateFanOut.hpp"
 #include "server/protocol/Envelope.hpp"
 #include "server/protocol/dto/JumpDto.hpp"
 #include "server/protocol/dto/MoveDto.hpp"
-#include "server/protocol/mappers/GameSnapshotMapper.hpp"
 #include "server/protocol/mappers/MoveRequestMapper.hpp"
 
 MakeMoveUseCase::MakeMoveUseCase(IEventBus &bus, ITransport &transport, ConnectionManager &connections,
@@ -99,26 +98,5 @@ void MakeMoveUseCase::fanOutStateUpdate(const std::string &connectionId, const s
     // client request, so requestId is left empty here.
     bus_.publish(BusEvent{"MoveApplied", connectionId, "", nlohmann::json::object()});
 
-    const auto recipients = connections_.connectionsFor(&session);
-
-    // Built once - identical for every recipient of this STATE_UPDATE, only
-    // the top-level role/requestId vary per recipient below.
-    std::vector<PlayerDto> players;
-    players.reserve(recipients.size());
-    for (const auto &[id, binding] : recipients)
-    {
-        players.push_back(PlayerDto{id, std::string(1, binding.color), identities_.usernameFor(id).value_or("")});
-    }
-
-    const GameSnapshot snapshot = session.snapshot();
-    for (const auto &[recipientId, binding] : recipients)
-    {
-        // Only the mover gets their own requestId echoed back - the other
-        // player never sent this request, so giving them the same id would
-        // wrongly imply they have a pending request of their own by that name.
-        const std::string &recipientRequestId = (recipientId == connectionId) ? requestId : "";
-        transport_.send(recipientId,
-                        protocol::envelope("STATE_UPDATE", recipientRequestId,
-                                           GameSnapshotMapper::toJson(snapshot, binding.color, players)));
-    }
+    StateFanOut::broadcast(session, connections_, identities_, transport_, connectionId, requestId);
 }

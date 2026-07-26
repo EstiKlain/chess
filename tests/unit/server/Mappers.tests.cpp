@@ -7,6 +7,7 @@
 #include "model/Position.hpp"
 #include "server/protocol/dto/JumpDto.hpp"
 #include "server/protocol/dto/MoveDto.hpp"
+#include "server/protocol/dto/StateUpdateDto.hpp"
 #include "server/protocol/mappers/GameSnapshotMapper.hpp"
 #include "server/protocol/mappers/MoveRequestMapper.hpp"
 
@@ -83,4 +84,57 @@ TEST_CASE("GameSnapshotMapper: toJson carries the full players array with id/col
     // The players array itself does not vary per recipient - only the
     // top-level "role" does.
     CHECK(whiteView.at("players") == blackView.at("players"));
+}
+
+TEST_CASE("GameSnapshotMapper: fromDto is the exact inverse of toJson for a full snapshot") {
+    GameSnapshot original;
+    original.rows = 8;
+    original.cols = 8;
+    original.gameOver = false;
+    original.nowMs = 4321;
+
+    PieceSnapshot idle{};
+    idle.id = 1;
+    idle.color = 'w';
+    idle.kind = 'R';
+    idle.row = 7;
+    idle.col = 0;
+    original.pieces.push_back(idle);
+
+    // A piece mid-motion, to exercise the optional MotionDto round-trip too.
+    PieceSnapshot moving{};
+    moving.id = 2;
+    moving.color = 'b';
+    moving.kind = 'P';
+    moving.row = 1;
+    moving.col = 0;
+    moving.state = PieceState::Moving;
+    moving.stateStartMs = 100;
+    moving.stateDurationMs = 1000;
+    moving.motion = MotionSnapshot{1, 0, 3, 0, 100, 1000};
+    original.pieces.push_back(moving);
+
+    const nlohmann::json json = GameSnapshotMapper::toJson(original, 'w', {});
+    const StateUpdateDto dto = json.get<StateUpdateDto>();
+    const GameSnapshot roundTripped = GameSnapshotMapper::fromDto(dto);
+
+    CHECK(roundTripped.rows == original.rows);
+    CHECK(roundTripped.cols == original.cols);
+    CHECK(roundTripped.gameOver == original.gameOver);
+    CHECK(roundTripped.nowMs == original.nowMs);
+    REQUIRE(roundTripped.pieces.size() == 2);
+
+    CHECK(roundTripped.pieces[0].id == idle.id);
+    CHECK(roundTripped.pieces[0].color == idle.color);
+    CHECK(roundTripped.pieces[0].kind == idle.kind);
+    CHECK(roundTripped.pieces[0].row == idle.row);
+    CHECK(roundTripped.pieces[0].col == idle.col);
+    CHECK(roundTripped.pieces[0].state == PieceState::Idle);
+    CHECK_FALSE(roundTripped.pieces[0].motion.has_value());
+
+    CHECK(roundTripped.pieces[1].state == PieceState::Moving);
+    REQUIRE(roundTripped.pieces[1].motion.has_value());
+    CHECK(roundTripped.pieces[1].motion->fromRow == 1);
+    CHECK(roundTripped.pieces[1].motion->toRow == 3);
+    CHECK(roundTripped.pieces[1].motion->durationMs == 1000);
 }

@@ -28,7 +28,7 @@ private:
     void finishRequest(const std::string& connectionId, const std::string& requestId, GameSession& session,
                         bool accepted, const std::string& reason);
 
-    /// Sends STATE_UPDATE (with each recipient's own role, and the shared player roster) to every connection bound to a session, and publishes MoveApplied on the bus. Named "fanOut", not "broadcast", because it deliberately does NOT use ITransport::broadcast() - it sends one distinct message per recipient (each with its own role). Only the mover's own connectionId gets requestId echoed back; every other recipient gets "" - they never sent this request.
+    /// Publishes MoveApplied on the bus, then delegates the actual STATE_UPDATE fan-out to StateFanOut::broadcast (shared with LoginUseCase, which triggers the same broadcast on a successful login).
     void fanOutStateUpdate(const std::string& connectionId, const std::string& requestId, GameSession& session);
 
     IEventBus& bus_;

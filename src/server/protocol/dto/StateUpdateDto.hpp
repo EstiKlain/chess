@@ -58,6 +58,13 @@ inline void to_json(nlohmann::json& j, const PlayerDto& d) {
     j = nlohmann::json{{"id", d.id}, {"color", d.color}, {"name", d.name}};
 }
 
+/// Parses a PlayerDto out of a STATE_UPDATE payload's "players" array. Needed client-side (ServerConnection) to read the roster back; the server itself only ever serializes this DTO, never parses it.
+inline void from_json(const nlohmann::json& j, PlayerDto& d) {
+    d.id = j.at("id").get<std::string>();
+    d.color = j.at("color").get<std::string>();
+    d.name = j.at("name").get<std::string>();
+}
+
 /// Serializes a MotionDto to JSON.
 inline void to_json(nlohmann::json& j, const MotionDto& d) {
     j = nlohmann::json{
@@ -65,6 +72,16 @@ inline void to_json(nlohmann::json& j, const MotionDto& d) {
         {"toRow", d.toRow},     {"toCol", d.toCol},
         {"startMs", d.startMs}, {"durationMs", d.durationMs},
     };
+}
+
+/// Parses a MotionDto out of a piece's "motion" object.
+inline void from_json(const nlohmann::json& j, MotionDto& d) {
+    d.fromRow = j.at("fromRow").get<int>();
+    d.fromCol = j.at("fromCol").get<int>();
+    d.toRow = j.at("toRow").get<int>();
+    d.toCol = j.at("toCol").get<int>();
+    d.startMs = j.at("startMs").get<long>();
+    d.durationMs = j.at("durationMs").get<long>();
 }
 
 /// Serializes a PieceDto to JSON.
@@ -80,6 +97,21 @@ inline void to_json(nlohmann::json& j, const PieceDto& d) {
     }
 }
 
+/// Parses a PieceDto out of a STATE_UPDATE payload's "pieces" array. "motion" is only present while the piece is actually moving/jumping - absent otherwise, matching to_json's own conditional field.
+inline void from_json(const nlohmann::json& j, PieceDto& d) {
+    d.id = j.at("id").get<int>();
+    d.color = j.at("color").get<std::string>().at(0);
+    d.kind = j.at("kind").get<std::string>().at(0);
+    d.row = j.at("row").get<int>();
+    d.col = j.at("col").get<int>();
+    d.state = j.at("state").get<std::string>();
+    d.stateStartMs = j.at("stateStartMs").get<long>();
+    d.stateDurationMs = j.at("stateDurationMs").get<long>();
+    if (j.contains("motion")) {
+        d.motion = j.at("motion").get<MotionDto>();
+    }
+}
+
 /// Serializes a full StateUpdateDto (snapshot + per-recipient role + player roster) to JSON.
 inline void to_json(nlohmann::json& j, const StateUpdateDto& d) {
     j = nlohmann::json{
@@ -88,4 +120,15 @@ inline void to_json(nlohmann::json& j, const StateUpdateDto& d) {
         {"role", std::string(1, d.role)},
         {"players", d.players},
     };
+}
+
+/// Parses a full StateUpdateDto out of a STATE_UPDATE message's payload JSON - the reverse of to_json above, needed client-side (ServerConnection) to turn a received STATE_UPDATE back into data GameSnapshotMapper::fromDto can convert to a domain GameSnapshot.
+inline void from_json(const nlohmann::json& j, StateUpdateDto& d) {
+    d.rows = j.at("rows").get<int>();
+    d.cols = j.at("cols").get<int>();
+    d.pieces = j.at("pieces").get<std::vector<PieceDto>>();
+    d.gameOver = j.at("gameOver").get<bool>();
+    d.nowMs = j.at("nowMs").get<long>();
+    d.role = j.at("role").get<std::string>().at(0);
+    d.players = j.at("players").get<std::vector<PlayerDto>>();
 }

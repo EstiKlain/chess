@@ -21,4 +21,7 @@ namespace GameSnapshotMapper {
 /// Converts a domain GameSnapshot plus one recipient's color plus the full player roster into that recipient's STATE_UPDATE payload JSON.
 nlohmann::json toJson(const GameSnapshot& snapshot, char recipientColor, const std::vector<PlayerDto>& players);
 
+/// Converts a parsed STATE_UPDATE DTO back into a domain GameSnapshot - the reverse of toJson, needed client-side (ServerConnection). dto.role/dto.players are deliberately NOT part of GameSnapshot - core/ has no session concept - callers read those directly off the DTO instead.
+GameSnapshot fromDto(const StateUpdateDto& dto);
+
 }  // namespace GameSnapshotMapper
