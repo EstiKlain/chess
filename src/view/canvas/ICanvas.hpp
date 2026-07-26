@@ -47,12 +47,16 @@ public:
     
     virtual void setOnMouseClick(std::function<void(int x, int y)> callback) = 0;
 
-    // Iteration D: added solely for the game-over banner (see
-    // BoardRenderer::drawGameOverOverlay). Same rule as
-    // setOnMouseClick above - only ImgCanvas is allowed to turn this
-    // into an actual OpenCV call (cv::putText). This is a breaking
-    // change to ICanvas: every implementation (including test fakes)
-    // needs a new override.
+    // Right-click channel, symmetric to setOnMouseClick above. Kept as a
+    // separate method (not a button-flag parameter) so ICanvas exposes two
+    // distinct, self-documenting input channels rather than one channel
+    // with a hidden branch. ICanvas still knows nothing about *why* a
+    // right-click matters (that's Controller::handleJumpClick's job) -
+    // only that a right mouse button went down, and where. Same rule as
+    // setOnMouseClick: only ImgCanvas is allowed to turn this into a real
+    // OpenCV call. Breaking change to ICanvas - every implementation
+    // (including test fakes) needs a new override.
+    virtual void setOnRightMouseClick(std::function<void(int x, int y)> callback) = 0;
     virtual void drawText(const std::string &text, int x, int y, const ColorRGB &color) = 0;
 
     virtual int width() const = 0;

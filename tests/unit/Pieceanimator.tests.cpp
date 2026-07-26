@@ -1,13 +1,3 @@
-// Pure math, zero Img/SpriteLoader/disk dependency - PieceAnimator only
-// ever sees plain GameSnapshot values plus an injected AnimationLookup
-// lambda. Every test here builds its own PieceSnapshot/MotionSnapshot by
-// hand; nothing touches a real GameEngine or the filesystem.
-//
-// Iteration E: PieceAnimator no longer infers "move" vs "idle" purely
-// from motion.has_value() - it reads piece.state directly (Idle, Moving,
-// Jumping, RestingShort, RestingLong, Captured) and maps it to the
-// matching sprite-folder name. That's the fix for the original bug:
-// jump/rest states previously never got looked up at all.
 #include "doctest.h"
 
 #include "view/render/PieceAnimator.hpp"
@@ -67,22 +57,26 @@ namespace
     }
 }
 
-// --- computePlacement: idle pieces -----------------------------------
-
-TEST_CASE("computePlacement: an idle piece is drawn at its cell's pixel position, state=idle, frame=1")
+TEST_CASE("computePlacement: an idle piece is drawn at its cell's pixel position")
 {
     const PieceSnapshot p = idlePiece(1, 'w', 'Q', 2, 3);
-    const AnimatedPlacement placement = PieceAnimator::computePlacement(p, /*nowMs*/ 1000, /*cellSize*/ 100, AnimationSpec{6, 4});
+    const AnimatedPlacement placement = PieceAnimator::computePlacement(p, /*nowMs*/ 0, /*cellSize*/ 100, AnimationSpec{6, 4});
 
     const auto rect = BoardGeometry::cellRect(2, 3, 100);
     CHECK(placement.pieceCode == "QW");
     CHECK(placement.state == "idle");
-    // Idle/Captured are pinned to frame 1 regardless of elapsed time -
-    // they were never part of the reported bug (only jump/rest were),
-    // so their behavior is deliberately unchanged from before Iteration E.
-    CHECK(placement.frameIndex == 1);
     CHECK(placement.pixelX == rect.x);
     CHECK(placement.pixelY == rect.y);
+}
+
+TEST_CASE("computePlacement: an idle piece loops through its own frames over time, just like move/jump/rest")
+{
+    const PieceSnapshot p = idlePiece(1, 'w', 'Q', 2, 3);
+    // 6 fps, 4 frames, is_loop=true. At 350ms: floor(350*6/1000)=2 played -> index 3.
+    const AnimatedPlacement placement = PieceAnimator::computePlacement(p, /*nowMs*/ 350, 100, AnimationSpec{6, 4, true});
+
+    CHECK(placement.state == "idle");
+    CHECK(placement.frameIndex == 3);
 }
 
 TEST_CASE("computePlacement: pieceCode combines kind+uppercased color the same way for black pieces")
@@ -231,8 +225,7 @@ TEST_CASE("computePlacement: a short-resting piece maps to \"short_rest\"")
     CHECK(placement.state == "short_rest");
 }
 
-TEST_CASE("computePlacement: a captured piece is pinned to frame 1 like idle")
-{
+TEST_CASE("computePlacement: a captured piece stays pinned to frame 1 (it's off the board, idle is no longer pinned)") {
     PieceSnapshot p = idlePiece(25, 'b', 'P', 0, 0);
     p.state = PieceState::Captured;
 

@@ -71,9 +71,9 @@ namespace PieceAnimator
             result.pixelY = rect.y;
         }
 
-        if (piece.state == PieceState::Idle || piece.state == PieceState::Captured)
+        if (piece.state == PieceState::Captured)
         {
-            result.frameIndex = 1; 
+            result.frameIndex = 1;
         }
         else if (stateSpec.frameCount <= 0 || stateSpec.framesPerSec <= 0)
         {
@@ -87,12 +87,8 @@ namespace PieceAnimator
             if (stateSpec.isLoop)
                 result.frameIndex = static_cast<int>(framesPlayed % stateSpec.frameCount) + 1;
             else
-                // Non-looping (e.g. jump, short_rest, long_rest): play
-                // through once, then hold on the last frame instead of
-                // snapping back to frame 1.
                 result.frameIndex = static_cast<int>(std::min<long>(framesPlayed, stateSpec.frameCount - 1)) + 1;
         }
-
         return result;
     }
 
