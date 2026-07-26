@@ -1,4 +1,4 @@
-#include "client_net/WebSocketClientLink.hpp"
+#include "client_net/infrastructure/WebSocketClientLink.hpp"
 
 #include <condition_variable>
 #include <mutex>

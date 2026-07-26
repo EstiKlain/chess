@@ -1,4 +1,4 @@
-#include "client_net/ServerConnection.hpp"
+#include "client_net/application/ServerConnection.hpp"
 
 #include <utility>
 

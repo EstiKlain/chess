@@ -5,8 +5,8 @@
 #include <utility>
 #include <vector>
 
-#include "client_net/IServerLink.hpp"
-#include "client_net/ServerConnection.hpp"
+#include "client_net/domain_ports/IServerLink.hpp"
+#include "client_net/application/ServerConnection.hpp"
 #include "engine/MoveRequest.hpp"
 #include "model/Position.hpp"
 

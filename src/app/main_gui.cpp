@@ -3,17 +3,21 @@
 
 #include <chrono>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 
-#include "client_net/ServerConnection.hpp"
-#include "client_net/WebSocketClientLink.hpp"
+#include "client_net/application/ServerConnection.hpp"
+#include "client_net/infrastructure/ClientLogger.hpp"
+#include "client_net/infrastructure/WebSocketClientLink.hpp"
 #include "config.hpp"
 #include "engine/GameSnapshot.hpp"
 #include "input/Controller.hpp"
 #include "model/Board.hpp"
 #include "server/config.hpp"
+#include "server/infrastructure/logging/FileLogger.hpp"
 #include "server/protocol/dto/StateUpdateDto.hpp"
 #include "view/assets/AnimationConfig.hpp"
 #include "view/assets/SpriteLoader.hpp"
@@ -95,7 +99,20 @@ int main()
     std::string username;
     std::getline(std::cin, username);
 
-    WebSocketClientLink link;
+    // logs/ doubles as the natural future Docker volume mount point - the
+    // path is decided here, at the composition root, and nowhere else;
+    // FileLogger itself never hardcodes a path (see CLAUDE.md's
+    // Future-Docker-readiness note).
+    std::filesystem::create_directories(std::string(PROJECT_ROOT) + "/logs");
+    std::ofstream clientLogStream(std::string(PROJECT_ROOT) + "/logs/client.log", std::ios::app);
+    FileLogger clientLogger(clientLogStream);
+
+    // ClientLogger wraps the real link and is what ServerConnection actually
+    // receives as `link` - ServerConnection never changes, since it was
+    // always written against IServerLink&, never against WebSocketClientLink
+    // by name (the client-side mirror of LoggingTransport on the server).
+    WebSocketClientLink realLink;
+    ClientLogger link(realLink, clientLogger);
     ServerConnection connection(link);
     try
     {

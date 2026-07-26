@@ -53,4 +53,7 @@ Thumbs.db
 
 OpenCV_451/
 
+# ===== Runtime-generated logs (Server-Iteration 4) =====
+logs/
+
 CLAUDE.md

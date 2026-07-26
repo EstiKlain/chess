@@ -15,7 +15,7 @@
 #include <websocketpp/client.hpp>
 #include <websocketpp/config/asio_no_tls_client.hpp>
 
-#include "client_net/IServerLink.hpp"
+#include "client_net/domain_ports/IServerLink.hpp"
 
 // Concrete IServerLink: websocketpp + standalone asio, the client-side
 // mirror of WebSocketTransport (src/server/infrastructure/transport/). This

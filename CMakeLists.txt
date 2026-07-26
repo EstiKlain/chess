@@ -66,7 +66,9 @@ add_executable(chess_server
     src/server/protocol/mappers/GameSnapshotMapper.cpp
     src/server/infrastructure/bus/InProcessEventBus.cpp
     src/server/infrastructure/transport/WebSocketTransport.cpp
+    src/server/infrastructure/transport/LoggingTransport.cpp
     src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
+    src/server/infrastructure/logging/FileLogger.cpp
     src/server/application/ConnectionManager.cpp
     src/server/application/GameSession.cpp
     src/server/application/MakeMoveUseCase.cpp
@@ -131,8 +133,10 @@ add_custom_command(TARGET chess_game POST_BUILD
 # network-synced mirror board), so core/model/Board.cpp + BoardMapper stay.
 add_executable(chess_gui
     src/app/main_gui.cpp
-    src/client_net/ServerConnection.cpp
-    src/client_net/WebSocketClientLink.cpp
+    src/client_net/application/ServerConnection.cpp
+    src/client_net/infrastructure/WebSocketClientLink.cpp
+    src/client_net/infrastructure/ClientLogger.cpp
+    src/server/infrastructure/logging/FileLogger.cpp
     src/view/canvas/img.cpp
     src/view/canvas/ImgCanvas.cpp
     src/view/canvas/WindowMapper.cpp
@@ -243,11 +247,15 @@ add_executable(chess_tests
         tests/unit/server/ConnectionManager.tests.cpp
         tests/unit/server/LoginUseCase.tests.cpp
         tests/unit/server/AuthGuard.tests.cpp
+        tests/unit/server/FileLogger.tests.cpp
+        tests/unit/server/LoggingTransport.tests.cpp
         src/server/protocol/MessageRouter.cpp
         src/server/protocol/mappers/MoveRequestMapper.cpp
         src/server/protocol/mappers/GameSnapshotMapper.cpp
         src/server/infrastructure/bus/InProcessEventBus.cpp
         src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
+        src/server/infrastructure/transport/LoggingTransport.cpp
+        src/server/infrastructure/logging/FileLogger.cpp
         src/server/application/ConnectionManager.cpp
         src/server/application/GameSession.cpp
         src/server/application/MakeMoveUseCase.cpp
@@ -288,7 +296,9 @@ add_executable(chess_tests
     add_executable(chess_client_tests
         tests/unit/client_net/doctest_main.cpp
         tests/unit/client_net/ServerConnection.tests.cpp
-        src/client_net/ServerConnection.cpp
+        tests/unit/client_net/ClientLogger.tests.cpp
+        src/client_net/application/ServerConnection.cpp
+        src/client_net/infrastructure/ClientLogger.cpp
         src/server/protocol/mappers/GameSnapshotMapper.cpp
         src/server/protocol/mappers/MoveRequestMapper.cpp
     )

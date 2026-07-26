@@ -8,7 +8,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "client_net/IServerLink.hpp"
+#include "client_net/domain_ports/IServerLink.hpp"
 #include "engine/GameSnapshot.hpp"
 #include "engine/MoveRequest.hpp"
 #include "server/protocol/dto/StateUpdateDto.hpp"

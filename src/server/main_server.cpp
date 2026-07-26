@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -21,9 +22,12 @@
 #include "server/config.hpp"
 #include "server/domain_ports/IEventBus.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
+#include "server/domain_ports/ILogger.hpp"
 #include "server/domain_ports/ITransport.hpp"
 #include "server/infrastructure/bus/InProcessEventBus.hpp"
+#include "server/infrastructure/logging/FileLogger.hpp"
 #include "server/infrastructure/persistence/InMemoryIdentityStore.hpp"
+#include "server/infrastructure/transport/LoggingTransport.hpp"
 #include "server/infrastructure/transport/WebSocketTransport.hpp"
 #include "server/protocol/Envelope.hpp"
 #include "server/protocol/MessageRouter.hpp"
@@ -57,7 +61,23 @@ GameEngine loadInitialEngine() {
 
 int main() {
     InProcessEventBus bus;
-    WebSocketTransport transport;
+
+    // logs/ doubles as the natural future Docker volume mount point - the
+    // path is decided here, at the composition root, and nowhere else;
+    // FileLogger itself never hardcodes a path (see CLAUDE.md's
+    // Future-Docker-readiness note).
+    std::filesystem::create_directories(std::string(PROJECT_ROOT) + "/logs");
+    std::ofstream serverLogStream(std::string(PROJECT_ROOT) + "/logs/server.log", std::ios::app);
+    FileLogger serverLogger(serverLogStream);
+
+    // LoggingTransport wraps the real transport and is what everyone below
+    // actually receives as `transport` - AuthGuard/MessageRouter/the
+    // use-cases/the tick thread never change, since they were always
+    // written against ITransport&, never against WebSocketTransport by
+    // name (the same trick already used for AuthGuard wrapping the bus).
+    WebSocketTransport realTransport;
+    LoggingTransport transport(realTransport, serverLogger);
+
     ConnectionManager connections;
     InMemoryIdentityStore identities;
 
