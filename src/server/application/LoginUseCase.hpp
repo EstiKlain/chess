@@ -4,12 +4,14 @@
 
 #include <nlohmann/json.hpp>
 
+#include "server/application/ConnectionManager.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
 #include "server/domain_ports/ITransport.hpp"
 
 // Real LOGIN handling, kept out of main_server.cpp so the composition root
-// stays wiring-only. Depends only on domain_ports/ + protocol/, never on
-// WebSocketTransport/InProcessEventBus directly.
+// stays wiring-only. Depends only on domain_ports/ + protocol/ + application/
+// (ConnectionManager), never on WebSocketTransport/InProcessEventBus
+// directly.
 //
 // Deliberately does NOT trigger a STATE_UPDATE broadcast itself - it did,
 // briefly, during Iteration 3.5 (so a freshly-logged-in client wouldn't
@@ -21,12 +23,13 @@
 // the same problem.
 class LoginUseCase {
 public:
-    LoginUseCase(IIdentityStore& identities, ITransport& transport);
+    LoginUseCase(IIdentityStore& identities, ITransport& transport, ConnectionManager& connections);
 
-    /// Handles a LOGIN event: rejects a missing/empty username with MALFORMED_PAYLOAD, otherwise records the association and replies LOGIN_OK.
+    /// Handles a LOGIN event: rejects a connection with no session binding (e.g. a 3rd/rejected connection - see ConnectionManager::onConnected) with TABLE_FULL, rejects a missing/empty username with MALFORMED_PAYLOAD, otherwise records the association and replies LOGIN_OK.
     void handleLogin(const std::string& connectionId, const std::string& requestId, const nlohmann::json& payload);
 
 private:
     IIdentityStore& identities_;
     ITransport& transport_;
+    ConnectionManager& connections_;
 };

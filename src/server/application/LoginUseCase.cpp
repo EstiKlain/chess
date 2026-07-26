@@ -5,11 +5,16 @@
 #include "server/protocol/Envelope.hpp"
 #include "server/protocol/dto/LoginDto.hpp"
 
-LoginUseCase::LoginUseCase(IIdentityStore& identities, ITransport& transport)
-    : identities_(identities), transport_(transport) {}
+LoginUseCase::LoginUseCase(IIdentityStore& identities, ITransport& transport, ConnectionManager& connections)
+    : identities_(identities), transport_(transport), connections_(connections) {}
 
 void LoginUseCase::handleLogin(const std::string& connectionId, const std::string& requestId,
                                 const nlohmann::json& payload) {
+    if (!connections_.sessionFor(connectionId).has_value()) {
+        protocol::sendError(transport_, connectionId, requestId, "TABLE_FULL", "this table already has two players");
+        return;
+    }
+
     LoginDto dto;
     try {
         dto = payload.get<LoginDto>();

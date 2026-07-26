@@ -72,7 +72,7 @@ int main() {
 
     GameSession session(loadInitialEngine());
     MakeMoveUseCase makeMoveUseCase(bus, transport, connections, identities);
-    LoginUseCase loginUseCase(identities, transport);
+    LoginUseCase loginUseCase(identities, transport, connections);
 
     // Wiring #1: transport lifecycle -> connection registry. Rejection of a
     // 3rd connection happens HERE, at connect time, not on the first MOVE -

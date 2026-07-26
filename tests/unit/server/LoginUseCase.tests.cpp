@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include "server/application/ConnectionManager.hpp"
 #include "server/application/LoginUseCase.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
 #include "server/domain_ports/ITransport.hpp"
@@ -51,7 +52,9 @@ public:
 TEST_CASE("LoginUseCase: a non-empty username is accepted and LOGIN_OK is sent to the sender") {
     FakeIdentityStore identities;
     FakeTransport transport;
-    LoginUseCase useCase(identities, transport);
+    ConnectionManager connections;
+    connections.onConnected("conn-1", nullptr);
+    LoginUseCase useCase(identities, transport, connections);
 
     useCase.handleLogin("conn-1", "r1", nlohmann::json{{"username", "alice"}});
 
@@ -68,7 +71,9 @@ TEST_CASE("LoginUseCase: a non-empty username is accepted and LOGIN_OK is sent t
 TEST_CASE("LoginUseCase: an empty username is rejected with MALFORMED_PAYLOAD and no login is recorded") {
     FakeIdentityStore identities;
     FakeTransport transport;
-    LoginUseCase useCase(identities, transport);
+    ConnectionManager connections;
+    connections.onConnected("conn-1", nullptr);
+    LoginUseCase useCase(identities, transport, connections);
 
     useCase.handleLogin("conn-1", "r2", nlohmann::json{{"username", ""}});
 
@@ -80,7 +85,9 @@ TEST_CASE("LoginUseCase: an empty username is rejected with MALFORMED_PAYLOAD an
 TEST_CASE("LoginUseCase: a payload missing the username field is rejected with MALFORMED_PAYLOAD") {
     FakeIdentityStore identities;
     FakeTransport transport;
-    LoginUseCase useCase(identities, transport);
+    ConnectionManager connections;
+    connections.onConnected("conn-1", nullptr);
+    LoginUseCase useCase(identities, transport, connections);
 
     useCase.handleLogin("conn-1", "r3", nlohmann::json::object());
 
@@ -92,11 +99,28 @@ TEST_CASE("LoginUseCase: a payload missing the username field is rejected with M
 TEST_CASE("LoginUseCase: logging in again on the same connection replaces the previous username") {
     FakeIdentityStore identities;
     FakeTransport transport;
-    LoginUseCase useCase(identities, transport);
+    ConnectionManager connections;
+    connections.onConnected("conn-1", nullptr);
+    LoginUseCase useCase(identities, transport, connections);
 
     useCase.handleLogin("conn-1", "r4", nlohmann::json{{"username", "alice"}});
     useCase.handleLogin("conn-1", "r5", nlohmann::json{{"username", "bob"}});
 
     REQUIRE(identities.usernameFor("conn-1").has_value());
     CHECK(identities.usernameFor("conn-1").value() == "bob");
+}
+
+TEST_CASE("LoginUseCase: a connection with no session binding is rejected with TABLE_FULL, not LOGIN_OK") {
+    FakeIdentityStore identities;
+    FakeTransport transport;
+    ConnectionManager connections;  // "conn-1" deliberately never bound - e.g. a 3rd/rejected connection.
+    LoginUseCase useCase(identities, transport, connections);
+
+    useCase.handleLogin("conn-1", "r6", nlohmann::json{{"username", "alice"}});
+
+    CHECK_FALSE(identities.isLoggedIn("conn-1"));
+    REQUIRE(transport.sent.size() == 1);
+    CHECK(transport.sent[0].first == "conn-1");
+    CHECK(transport.sent[0].second.find("TABLE_FULL") != std::string::npos);
+    CHECK(transport.sent[0].second.find("LOGIN_OK") == std::string::npos);
 }
