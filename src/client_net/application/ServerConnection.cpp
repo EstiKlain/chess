@@ -3,11 +3,11 @@
 #include <utility>
 
 #include "server/protocol/Envelope.hpp"
-#include "server/protocol/dto/JumpDto.hpp"
-#include "server/protocol/dto/MessageEnvelope.hpp"
-#include "server/protocol/dto/MoveDto.hpp"
-#include "server/protocol/mappers/GameSnapshotMapper.hpp"
-#include "server/protocol/mappers/MoveRequestMapper.hpp"
+#include "shared/protocol/dto/JumpDto.hpp"
+#include "shared/protocol/dto/MessageEnvelope.hpp"
+#include "shared/protocol/dto/MoveDto.hpp"
+#include "shared/protocol/mappers/GameSnapshotMapper.hpp"
+#include "shared/protocol/mappers/MoveRequestMapper.hpp"
 
 ServerConnection::ServerConnection(IServerLink& link) : link_(link) {
     link_.setOnMessage([this](const std::string& rawJson) { onMessage(rawJson); });

@@ -1,4 +1,4 @@
-#include "server/protocol/mappers/MoveRequestMapper.hpp"
+#include "shared/protocol/mappers/MoveRequestMapper.hpp"
 
 namespace MoveRequestMapper {
 

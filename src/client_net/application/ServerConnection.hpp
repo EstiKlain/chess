@@ -11,7 +11,7 @@
 #include "client_net/domain_ports/IServerLink.hpp"
 #include "engine/GameSnapshot.hpp"
 #include "engine/MoveRequest.hpp"
-#include "server/protocol/dto/StateUpdateDto.hpp"
+#include "shared/protocol/dto/StateUpdateDto.hpp"
 
 // The network requester Controller binds to in place of a local GameEngine:
 // implements the same duck-typed interface (requestMove/requestJump)

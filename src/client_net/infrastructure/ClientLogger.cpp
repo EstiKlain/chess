@@ -9,13 +9,13 @@ void ClientLogger::connect(const std::string& host, uint16_t port) {
 }
 
 void ClientLogger::send(const std::string& rawJson) {
-    logger_.log("SENT", "", rawJson);
+    logger_.log(LogDirection::Sent, "", rawJson);
     real_.send(rawJson);
 }
 
 void ClientLogger::setOnMessage(OnMessageHandler handler) {
     real_.setOnMessage([this, handler = std::move(handler)](const std::string& rawJson) {
-        logger_.log("RECEIVED", "", rawJson);
+        logger_.log(LogDirection::Received, "", rawJson);
         handler(rawJson);
     });
 }

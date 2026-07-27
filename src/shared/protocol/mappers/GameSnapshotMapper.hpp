@@ -5,7 +5,7 @@
 #include <nlohmann/json.hpp>
 
 #include "engine/GameSnapshot.hpp"
-#include "server/protocol/dto/StateUpdateDto.hpp"
+#include "shared/protocol/dto/StateUpdateDto.hpp"
 
 // The other core/<->protocol/ meeting point (alongside MoveRequestMapper).
 // Takes the recipient's color explicitly: GameSnapshot itself is shared

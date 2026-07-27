@@ -1,6 +1,6 @@
-#include "server/protocol/mappers/GameSnapshotMapper.hpp"
+#include "shared/protocol/mappers/GameSnapshotMapper.hpp"
 
-#include "server/protocol/dto/StateUpdateDto.hpp"
+#include "shared/protocol/dto/StateUpdateDto.hpp"
 
 namespace {
 

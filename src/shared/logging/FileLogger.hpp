@@ -4,7 +4,7 @@
 #include <ostream>
 #include <string>
 
-#include "server/domain_ports/ILogger.hpp"
+#include "shared/logging/ILogger.hpp"
 
 class FileLogger : public ILogger {
 public:
@@ -14,7 +14,7 @@ public:
     explicit FileLogger(std::ostream& out, TimestampProvider nowProvider = nullptr);
 
     /// Writes one line: "[<timestamp>] <direction> <connectionId> <rawJson>", then flushes.
-    void log(const std::string& direction, const std::string& connectionId, const std::string& rawJson) override;
+    void log(LogDirection direction, const std::string& connectionId, const std::string& rawJson) override;
 
 private:
     std::ostream& out_;

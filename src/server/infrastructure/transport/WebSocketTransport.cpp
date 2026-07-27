@@ -1,6 +1,7 @@
 #include "server/infrastructure/transport/WebSocketTransport.hpp"
 
 #include <sstream>
+#include <vector>
 
 WebSocketTransport::WebSocketTransport() {
     server_.clear_access_channels(websocketpp::log::alevel::all);
@@ -41,14 +42,27 @@ void WebSocketTransport::send(const std::string& connectionId, const std::string
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = connections_.find(connectionId);
     if (it == connections_.end()) return;  // Already disconnected - silently drop.
-    server_.send(it->second, rawJson, websocketpp::frame::opcode::text);
+    auto hdl = it->second;
+    // server_.send() is only safe to call from the io_service thread (server_.run()'s
+    // thread); this method is also called from main_server.cpp's tick thread, so the
+    // actual send must be posted onto the io_service rather than invoked directly here.
+    server_.get_io_service().post([this, hdl, rawJson]() {
+        server_.send(hdl, rawJson, websocketpp::frame::opcode::text);
+    });
 }
 
 void WebSocketTransport::broadcast(const std::string& rawJson) {
     std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<ConnectionHandle> handles;
+    handles.reserve(connections_.size());
     for (const auto& [id, hdl] : connections_) {
-        server_.send(hdl, rawJson, websocketpp::frame::opcode::text);
+        handles.push_back(hdl);
     }
+    server_.get_io_service().post([this, handles = std::move(handles), rawJson]() {
+        for (const auto& hdl : handles) {
+            server_.send(hdl, rawJson, websocketpp::frame::opcode::text);
+        }
+    });
 }
 
 void WebSocketTransport::setOnOpen(OnOpenHandler handler) { onOpen_ = std::move(handler); }

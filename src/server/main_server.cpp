@@ -22,15 +22,16 @@
 #include "server/config.hpp"
 #include "server/domain_ports/IEventBus.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
-#include "server/domain_ports/ILogger.hpp"
 #include "server/domain_ports/ITransport.hpp"
 #include "server/infrastructure/bus/InProcessEventBus.hpp"
-#include "server/infrastructure/logging/FileLogger.hpp"
 #include "server/infrastructure/persistence/InMemoryIdentityStore.hpp"
 #include "server/infrastructure/transport/LoggingTransport.hpp"
 #include "server/infrastructure/transport/WebSocketTransport.hpp"
 #include "server/protocol/Envelope.hpp"
 #include "server/protocol/MessageRouter.hpp"
+#include "shared/logging/FileLogger.hpp"
+#include "shared/logging/ILogger.hpp"
+#include "shared/protocol/config.hpp"
 
 #ifndef PROJECT_ROOT
 #define PROJECT_ROOT "."

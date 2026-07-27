@@ -62,13 +62,13 @@ find_package(Threads REQUIRED)
 add_executable(chess_server
     src/server/main_server.cpp
     src/server/protocol/MessageRouter.cpp
-    src/server/protocol/mappers/MoveRequestMapper.cpp
-    src/server/protocol/mappers/GameSnapshotMapper.cpp
+    src/shared/protocol/mappers/MoveRequestMapper.cpp
+    src/shared/protocol/mappers/GameSnapshotMapper.cpp
     src/server/infrastructure/bus/InProcessEventBus.cpp
     src/server/infrastructure/transport/WebSocketTransport.cpp
     src/server/infrastructure/transport/LoggingTransport.cpp
     src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
-    src/server/infrastructure/logging/FileLogger.cpp
+    src/shared/logging/FileLogger.cpp
     src/server/application/ConnectionManager.cpp
     src/server/application/GameSession.cpp
     src/server/application/MakeMoveUseCase.cpp
@@ -136,7 +136,7 @@ add_executable(chess_gui
     src/client_net/application/ServerConnection.cpp
     src/client_net/infrastructure/WebSocketClientLink.cpp
     src/client_net/infrastructure/ClientLogger.cpp
-    src/server/infrastructure/logging/FileLogger.cpp
+    src/shared/logging/FileLogger.cpp
     src/view/canvas/img.cpp
     src/view/canvas/ImgCanvas.cpp
     src/view/canvas/WindowMapper.cpp
@@ -152,8 +152,8 @@ add_executable(chess_gui
     src/core/input/Controller.cpp
     src/core/model/Board.cpp
     src/view/input/ClickLogger.cpp
-    src/server/protocol/mappers/GameSnapshotMapper.cpp
-    src/server/protocol/mappers/MoveRequestMapper.cpp
+    src/shared/protocol/mappers/GameSnapshotMapper.cpp
+    src/shared/protocol/mappers/MoveRequestMapper.cpp
 )
 target_include_directories(chess_gui PRIVATE src src/core ${OpenCV_INCLUDE_DIRS})
 target_link_directories(chess_gui PRIVATE ${OpenCV_LIB_DIR})
@@ -250,12 +250,12 @@ add_executable(chess_tests
         tests/unit/server/FileLogger.tests.cpp
         tests/unit/server/LoggingTransport.tests.cpp
         src/server/protocol/MessageRouter.cpp
-        src/server/protocol/mappers/MoveRequestMapper.cpp
-        src/server/protocol/mappers/GameSnapshotMapper.cpp
+        src/shared/protocol/mappers/MoveRequestMapper.cpp
+        src/shared/protocol/mappers/GameSnapshotMapper.cpp
         src/server/infrastructure/bus/InProcessEventBus.cpp
         src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
         src/server/infrastructure/transport/LoggingTransport.cpp
-        src/server/infrastructure/logging/FileLogger.cpp
+        src/shared/logging/FileLogger.cpp
         src/server/application/ConnectionManager.cpp
         src/server/application/GameSession.cpp
         src/server/application/MakeMoveUseCase.cpp
@@ -299,8 +299,8 @@ add_executable(chess_tests
         tests/unit/client_net/ClientLogger.tests.cpp
         src/client_net/application/ServerConnection.cpp
         src/client_net/infrastructure/ClientLogger.cpp
-        src/server/protocol/mappers/GameSnapshotMapper.cpp
-        src/server/protocol/mappers/MoveRequestMapper.cpp
+        src/shared/protocol/mappers/GameSnapshotMapper.cpp
+        src/shared/protocol/mappers/MoveRequestMapper.cpp
     )
     target_include_directories(chess_client_tests PRIVATE src src/core third_party)
     target_link_libraries(chess_client_tests PRIVATE

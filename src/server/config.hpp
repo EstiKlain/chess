@@ -1,11 +1,9 @@
 #pragma once
 
-#include <cstdint>
-
+// kPort moved to shared/protocol/config.hpp - it's part of the wire
+// protocol's connection contract, not server-internal configuration.
 namespace server_config
 {
-
-    constexpr uint16_t kPort = 9002;
 
     // How often the server's tick thread calls GameSession::wait() to advance
     // the game clock (resolve in-flight motions/cooldowns). This is the

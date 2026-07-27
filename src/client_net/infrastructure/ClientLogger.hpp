@@ -4,7 +4,7 @@
 #include <string>
 
 #include "client_net/domain_ports/IServerLink.hpp"
-#include "server/domain_ports/ILogger.hpp"
+#include "shared/logging/ILogger.hpp"
 
 // Decorator: implements IServerLink itself, wrapping the real link
 // (concretely WebSocketClientLink, but never named here - only

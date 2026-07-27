@@ -1,7 +1,7 @@
 #pragma once
 
 #include "engine/MoveRequest.hpp"
-#include "server/protocol/dto/MoveDto.hpp"
+#include "shared/protocol/dto/MoveDto.hpp"
 
 // The one place that knows about both core::MoveRequest and MoveDto - per
 // the plan, mappers are the single meeting point between core/ and

@@ -3,7 +3,7 @@
 #include <exception>
 
 #include "server/protocol/Envelope.hpp"
-#include "server/protocol/dto/MessageEnvelope.hpp"
+#include "shared/protocol/dto/MessageEnvelope.hpp"
 
 MessageRouter::MessageRouter(IEventBus& bus, ITransport& transport)
     : bus_(bus), transport_(transport) {}

@@ -5,11 +5,11 @@
 #include "engine/GameSnapshot.hpp"
 #include "engine/MoveRequest.hpp"
 #include "model/Position.hpp"
-#include "server/protocol/dto/JumpDto.hpp"
-#include "server/protocol/dto/MoveDto.hpp"
-#include "server/protocol/dto/StateUpdateDto.hpp"
-#include "server/protocol/mappers/GameSnapshotMapper.hpp"
-#include "server/protocol/mappers/MoveRequestMapper.hpp"
+#include "shared/protocol/dto/JumpDto.hpp"
+#include "shared/protocol/dto/MoveDto.hpp"
+#include "shared/protocol/dto/StateUpdateDto.hpp"
+#include "shared/protocol/mappers/GameSnapshotMapper.hpp"
+#include "shared/protocol/mappers/MoveRequestMapper.hpp"
 
 TEST_CASE("MoveRequestMapper: domain -> DTO -> JSON -> DTO -> domain round-trips exactly") {
     const MoveRequest original{Position{1, 2}, Position{3, 4}};

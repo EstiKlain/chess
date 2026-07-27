@@ -1,5 +1,7 @@
 #include "Board.hpp"
 
+#include <cassert>
+
 int Board::addPiece(char color, char kind, Position cell)
 {
     if (pieceAt(cell) != nullptr)
@@ -72,5 +74,7 @@ void Board::movePiece(int id, Position to)
     Piece *p = pieceById(id);
     if (!p)
         throw BoardError("unknown_piece");
+    assert(inBounds(to) && "movePiece destination out of bounds");
+    assert(pieceAt(to) == nullptr && "movePiece destination already occupied");
     p->cell = to;
 }
