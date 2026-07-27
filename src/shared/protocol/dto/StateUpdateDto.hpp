@@ -51,6 +51,8 @@ struct StateUpdateDto {
     long nowMs = 0;
     char role = ' ';  // the color this specific recipient plays, 'w' or 'b'
     std::vector<PlayerDto> players;
+    std::optional<std::string> winner;  // "w"/"b", present only when gameOver
+    std::optional<std::string> reason;  // "king_captured"/"resignation", present only when gameOver
 };
 
 /// Serializes a PlayerDto to JSON.
@@ -112,7 +114,7 @@ inline void from_json(const nlohmann::json& j, PieceDto& d) {
     }
 }
 
-/// Serializes a full StateUpdateDto (snapshot + per-recipient role + player roster) to JSON.
+/// Serializes a full StateUpdateDto (snapshot + per-recipient role + player roster) to JSON. winner/reason are only present when gameOver, matching PieceDto::motion's existing conditional-field pattern.
 inline void to_json(nlohmann::json& j, const StateUpdateDto& d) {
     j = nlohmann::json{
         {"rows", d.rows}, {"cols", d.cols}, {"pieces", d.pieces},
@@ -120,6 +122,12 @@ inline void to_json(nlohmann::json& j, const StateUpdateDto& d) {
         {"role", std::string(1, d.role)},
         {"players", d.players},
     };
+    if (d.winner.has_value()) {
+        j["winner"] = *d.winner;
+    }
+    if (d.reason.has_value()) {
+        j["reason"] = *d.reason;
+    }
 }
 
 /// Parses a full StateUpdateDto out of a STATE_UPDATE message's payload JSON - the reverse of to_json above, needed client-side (ServerConnection) to turn a received STATE_UPDATE back into data GameSnapshotMapper::fromDto can convert to a domain GameSnapshot.
@@ -131,4 +139,10 @@ inline void from_json(const nlohmann::json& j, StateUpdateDto& d) {
     d.nowMs = j.at("nowMs").get<long>();
     d.role = j.at("role").get<std::string>().at(0);
     d.players = j.at("players").get<std::vector<PlayerDto>>();
+    if (j.contains("winner")) {
+        d.winner = j.at("winner").get<std::string>();
+    }
+    if (j.contains("reason")) {
+        d.reason = j.at("reason").get<std::string>();
+    }
 }

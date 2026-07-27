@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -8,6 +9,7 @@
 #include "engine/GameSnapshot.hpp"
 #include "realtime/RealTimeArbiter.hpp"
 #include "rules/PieceRules.hpp"
+#include "rules/GameOverRule.hpp"
 
 // Result of a move/jump request - always carries a reason, even on
 // success ("legal") - so there is no more silent `return;` anywhere
@@ -44,6 +46,12 @@ public:
     // Advances the clock and lets the arbiter resolve anything that is due.
     void wait(long ms);
 
+    /// Ends the game immediately in the opponent's favor. No-op (returns
+    /// false) if the game is already over - a same-tick king-capture (via
+    /// wait()) must win any race against a disconnect-timeout resign, never
+    /// get overwritten by it.
+    bool resign(char color);
+
     // The single read-only gate OUT of the game, mirroring requestMove/
     // requestJump as the single gate IN. Returns a fresh value-copy every
     // call (Stage/Iteration D) - see GameSnapshot.hpp for why.
@@ -57,6 +65,8 @@ private:
     Board board_;
     pieceRules::PieceRulesRegistry rules_;
     bool gameOver_ = false;
+    std::optional<char> winner_;
+    std::optional<GameOverReason> gameOverReason_;
     long elapsedMs_ = 0;
     RealTimeArbiter arbiter_;
 };

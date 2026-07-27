@@ -81,6 +81,22 @@ TEST_CASE("AuthGuard: PING is forwarded to the wrapped bus even when not logged 
     CHECK(transport.sent.empty());
 }
 
+TEST_CASE("AuthGuard: RECONNECT is forwarded to the wrapped bus even when not logged in") {
+    // The new connectionId from a reconnecting socket was never logged in -
+    // ReconnectUseCase itself calls identities.login(...) on success, so
+    // RECONNECT must reach it even before that happens.
+    FakeEventBus wrappedBus;
+    FakeIdentityStore identities;
+    FakeTransport transport;
+    AuthGuard guard(wrappedBus, identities, transport);
+
+    guard.publish(BusEvent{"RECONNECT", "conn-1", "r1", nlohmann::json::object()});
+
+    REQUIRE(wrappedBus.published.size() == 1);
+    CHECK(wrappedBus.published[0].type == "RECONNECT");
+    CHECK(transport.sent.empty());
+}
+
 TEST_CASE("AuthGuard: MOVE from a logged-in connection is forwarded to the wrapped bus") {
     FakeEventBus wrappedBus;
     FakeIdentityStore identities;

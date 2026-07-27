@@ -1,5 +1,7 @@
 #include "server/application/ConnectionManager.hpp"
 
+#include "server/application/PlayerSessionRegistry.hpp"
+
 namespace {
 
 bool colorTaken(const std::unordered_map<std::string, ConnectionBinding>& connections, char color) {
@@ -13,16 +15,21 @@ bool colorTaken(const std::unordered_map<std::string, ConnectionBinding>& connec
 
 }  // namespace
 
-ConnectionOutcome ConnectionManager::onConnected(const std::string& connectionId, GameSession* session) {
-    if (!colorTaken(connections_, 'w')) {
+ConnectionOutcome ConnectionManager::onConnected(const std::string& connectionId, GameSession* session,
+                                                  const PlayerSessionRegistry& sessions) {
+    if (!colorTaken(connections_, 'w') && !sessions.colorReserved(session, 'w')) {
         connections_[connectionId] = ConnectionBinding{session, 'w'};
         return ConnectionOutcome{true, 'w'};
     }
-    if (!colorTaken(connections_, 'b')) {
+    if (!colorTaken(connections_, 'b') && !sessions.colorReserved(session, 'b')) {
         connections_[connectionId] = ConnectionBinding{session, 'b'};
         return ConnectionOutcome{true, 'b'};
     }
     return ConnectionOutcome{false, ' '};
+}
+
+void ConnectionManager::bindKnown(const std::string& connectionId, GameSession* session, char color) {
+    connections_[connectionId] = ConnectionBinding{session, color};
 }
 
 void ConnectionManager::onDisconnected(const std::string& connectionId) {

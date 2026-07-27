@@ -15,16 +15,23 @@
 #include "rules/PieceRules.hpp"
 #include "server/application/AuthGuard.hpp"
 #include "server/application/ConnectionManager.hpp"
+#include "server/application/DisconnectUseCase.hpp"
 #include "server/application/GameSession.hpp"
 #include "server/application/LoginUseCase.hpp"
 #include "server/application/MakeMoveUseCase.hpp"
+#include "server/application/PlayerSessionRegistry.hpp"
+#include "server/application/ReconnectUseCase.hpp"
 #include "server/application/StateFanOut.hpp"
 #include "server/config.hpp"
+#include "server/domain_ports/IClock.hpp"
 #include "server/domain_ports/IEventBus.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
+#include "server/domain_ports/ITokenGenerator.hpp"
 #include "server/domain_ports/ITransport.hpp"
 #include "server/infrastructure/bus/InProcessEventBus.hpp"
 #include "server/infrastructure/persistence/InMemoryIdentityStore.hpp"
+#include "server/infrastructure/security/SodiumTokenGenerator.hpp"
+#include "server/infrastructure/time/SystemClock.hpp"
 #include "server/infrastructure/transport/LoggingTransport.hpp"
 #include "server/infrastructure/transport/WebSocketTransport.hpp"
 #include "server/protocol/Envelope.hpp"
@@ -81,25 +88,38 @@ int main() {
 
     ConnectionManager connections;
     InMemoryIdentityStore identities;
+    SodiumTokenGenerator tokenGenerator;
+    PlayerSessionRegistry sessions(tokenGenerator);
+    SystemClock clock;
 
     // AuthGuard sits between the real bus and MessageRouter: it enforces
     // "LOGIN before anything else" without MessageRouter itself ever
     // learning that authentication exists. MakeMoveUseCase/LoginUseCase and
-    // the PING/MOVE/JUMP/LOGIN subscriptions below are wired to the raw
-    // `bus`, not `authGuard` - they only ever run once a request has already
-    // passed the gate, so wiring them past it again would add nothing.
+    // the PING/MOVE/JUMP/LOGIN/RECONNECT subscriptions below are wired to
+    // the raw `bus`, not `authGuard` - they only ever run once a request has
+    // already passed the gate, so wiring them past it again would add nothing.
     AuthGuard authGuard(bus, identities, transport);
     MessageRouter router(authGuard, transport);
 
     GameSession session(loadInitialEngine());
     MakeMoveUseCase makeMoveUseCase(bus, transport, connections, identities);
-    LoginUseCase loginUseCase(identities, transport, connections);
+    LoginUseCase loginUseCase(identities, transport, connections, sessions);
+    DisconnectUseCase disconnectUseCase(sessions, connections, transport, clock);
+    ReconnectUseCase reconnectUseCase(sessions, connections, identities, transport);
 
     // Wiring #1: transport lifecycle -> connection registry. Rejection of a
     // 3rd connection happens HERE, at connect time, not on the first MOVE -
     // there is no Play/Room yet to give a 3rd visitor anywhere else to go.
+    // A color reserved by `sessions` (a disconnected player still within
+    // their reconnect window) is treated as taken too, per onConnected's
+    // Iteration-5 seat-reservation check - note this means a client sending
+    // RECONNECT on a brand-new socket may see TABLE_FULL fire on this same
+    // socket's open, moments before its RECONNECT message succeeds
+    // (RECONNECT bypasses onConnected entirely via ConnectionManager::
+    // bindKnown) - see docs/kungfu_chess_server_plan (1).md's Iteration 5
+    // section for the client-side implication.
     transport.setOnOpen([&](const std::string& id) {
-        const ConnectionOutcome outcome = connections.onConnected(id, &session);
+        const ConnectionOutcome outcome = connections.onConnected(id, &session, sessions);
         if (!outcome.accepted) {
             transport.send(id, protocol::errorEnvelope("TABLE_FULL", "this table already has two players"));
             std::cout << "[server] connection rejected (table full): " << id << "\n";
@@ -111,13 +131,13 @@ int main() {
 
     transport.setOnClose([&](const std::string& id) {
         connections.onDisconnected(id);
-        // Two separate calls, deliberately not merged into one
-        // ConnectionManager method: ConnectionManager's one job is
-        // seat/color assignment, and folding identity cleanup into it would
-        // couple two unrelated concerns into one class. Fanning out
-        // disconnect cleanup across collaborators is exactly what a
-        // composition root is for.
+        // Three separate calls, deliberately not merged into one method:
+        // each collaborator owns exactly one concern (seat/color,
+        // identity, reconnect-window bookkeeping), and fanning out
+        // disconnect cleanup across them is exactly what a composition
+        // root is for.
         identities.logout(id);
+        disconnectUseCase.onDisconnected(id);
         std::cout << "[server] connection closed: " << id << " (total: "
                   << connections.connectionCount() << ")\n";
     });
@@ -148,6 +168,9 @@ int main() {
     bus.subscribe("JUMP", [&](const BusEvent& event) {
         makeMoveUseCase.handleJump(event.connectionId, event.requestId, event.payload);
     });
+    bus.subscribe("RECONNECT", [&](const BusEvent& event) {
+        reconnectUseCase.handleReconnect(event.connectionId, event.requestId, event.payload);
+    });
 
     // Tick thread: the server-side equivalent of chess_gui's render-loop
     // frame delta (src/app/main_gui.cpp's `while (!canvas.shouldClose())`
@@ -166,7 +189,15 @@ int main() {
     // StateFanOut call after a successful login. Detached: the process has
     // no graceful shutdown path yet (transport.stop() is never called
     // anywhere today), so there is nothing meaningful to join on.
-    std::thread([&session, &connections, &identities, &transport]() {
+    // disconnectUseCase.tick(...) is called AFTER session.wait(deltaMs) -
+    // deliberately, not incidentally: wait() resolves a same-tick
+    // king-capture first (setting GameEngine's winner/reason), so if a
+    // king-capture and a disconnect-timeout land in the same tick,
+    // GameSession::resign()'s own "already over" guard correctly refuses to
+    // overwrite it. Reversing this order would let a same-tick resign win
+    // instead of the legitimate king-capture outcome - see
+    // DisconnectUseCase.hpp's own ordering-guarantee comment.
+    std::thread([&session, &connections, &identities, &transport, &disconnectUseCase, &clock]() {
         auto lastTick = std::chrono::steady_clock::now();
         while (true) {
             std::this_thread::sleep_for(std::chrono::milliseconds(server_config::kTickIntervalMs));
@@ -175,6 +206,7 @@ int main() {
                 static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(now - lastTick).count());
             lastTick = now;
             session.wait(deltaMs);
+            disconnectUseCase.tick(clock.nowMs());
             StateFanOut::broadcast(session, connections, identities, transport, "", "");
         }
     }).detach();

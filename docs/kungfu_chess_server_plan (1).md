@@ -137,6 +137,7 @@ WebSocket/SQLite אמיתיים ב-unit test. IO אמיתי (Sqlite, WS) נבד�
 | type | כיוון | payload |
 |---|---|---|
 | `LOGIN` | client->server | `{ username }` -> `{ username, password }` (איטרציה 6) |
+| `LOGIN_OK` | server->client | `{ sessionToken }` (איטרציה 5 - נדרש ל-`RECONNECT` מאוחר יותר) |
 | `MOVE` | client->server | `{ fromRow, fromCol, toRow, toCol }` |
 | `JUMP` | client->server | `{ row, col }` - **לא** `{from,to}`, ראו הערה למעלה |
 | `STATE_UPDATE` | server->client | `GameSnapshot` ממופה ל-JSON, + `role` (player/viewer) |
@@ -154,6 +155,8 @@ WebSocket/SQLite אמיתיים ב-unit test. IO אמיתי (Sqlite, WS) נבד�
 **נוספו בפועל באיטרציה 2 (לא היו ברשימה המקורית - מתועד כאן בדיעבד כדי שהמסמך ישקף את המציאות):**
 - `TABLE_FULL` — חיבור שלישי, בזמן שאין עדיין Play/Room (איטרציות 7-8) שיכולים לקבל אותו לתפקיד צופה.
 - `MALFORMED_PAYLOAD` — payload של MOVE/JUMP חסר שדות/מהצורה הלא נכונה (קלט רע **מהצד השני**). נבדל בכוונה מ-`INTERNAL_ERROR`, ששמור למצב שלא-אמור-לקרות **בצד שלנו** (למשל connectionId לא רשום לשום session).
+
+**‏`SESSION_EXPIRED`‏ (איטרציה 5) - שתי משמעויות זהות ללקוח, לא נבדלות בכוונה:** מוחזר גם עבור `sessionToken`‏ שלא קיים בכלל, וגם עבור טוקן שכבר לא נמצא במצב "מנותק וממתין" (חלון ה-20 שניות כבר חלף וה-resign כבר בוצע, **או** ניסיון `RECONNECT`‏ כפול על אותו טוקן שכבר הצליח פעם אחת - `PlayerSessionRegistry::reconnect`‏ מסרב לשני המקרים באותו אופן). מבחינת הלקוח שתי הסיבות אומרות אותו דבר בדיוק - "אין משחק לחזור אליו" - הבחנה ביניהן הייתה דורשת לשמור רשומות "מצבה" (tombstone) לצמיתות עבור הבדל שאף פעם לא נראה למשתמש.
 
 ---
 
@@ -293,8 +296,41 @@ Iteration 3.5, Iteration 4 לא ניתנת למימוש כפי שהיא כתוב
 ה-HUD שנבנתה ב-Iteration 3.5, לא מחלקה חדשה. התכנון המדויק (איפה בדיוק ב-HUD, איך מתעדכן כל
 שנייה) נדחה לשיחת התכנון של איטרציה זו עצמה, לא מוכרע כאן.
 
+**נסגר בפועל (client half A, שיחת תכנון נפרדת אחרי שהשרת כבר היה ירוק):** נבנה `Hud::‏
+drawDisconnectCountdown`‏ (‏`src/view/hud/DisconnectCountdownHud.hpp`‏/‏`.cpp`‏, אותו pattern כמו
+`PlayerNamesHud`‏), ו-`ServerConnection`‏ מטפל עכשיו ב-`DISCONNECT_COUNTDOWN`‏ בפועל (במקום
+להתעלם ממנו בשקט) ושומר את ה-`sessionToken`‏ מ-`LOGIN_OK`‏. **פער שנמצא ותוקן באותה שיחה:**
+`ReconnectUseCase`‏ שולחת ליריב הודעת `DISCONNECT_COUNTDOWN`‏ נוספת עם `secondsLeft:0`‏ כש-
+reconnect מצליח - בלעדיה, ה-HUD אצל היריב היה נשאר תקוע על הערך האחרון לנצח (‏`STATE_UPDATE`‏
+הרגיל לא נושא סימון "הבעיה נפתרה"). בצד הלקוח, ה-countdown גם מתנקה אוטומטית בכל `STATE_UPDATE`‏
+עם `gameOver:true`‏ - זה מכסה גם את נתיב ה-timeout (resign אוטומטי), בלי לגעת ב-`DisconnectUseCase`‏
+בכלל.
+
+**עדיין לא נבנה, נדחה בכוונה לשיחת תכנון נפרדת (client half B):** הצד של **השחקן שהתנתק עצמו** -
+שה-`chess_gui`‏ שלו יזהה שהחיבור נפל וישלח `RECONNECT`‏ אוטומטית עם ה-`sessionToken`‏ השמור.
+`IServerLink`‏ אין לו היום שום callback ל"החיבור מת" (בניגוד ל-`ITransport::setOnClose`‏ בצד
+השרת), ו-`ServerConnection`‏ מחזיקה `IServerLink&‏`‏ (רפרנס, לא ניתן להחלפה) - שאלה ארכיטקטונית
+אמיתית שעדיין לא הוכרעה.
+
 **בדיקות:** עם fake clock - מתקדמים 19s + `RECONNECT` => מתבטל; מתקדמים 20s בלי `RECONNECT` =>
 resign.
+
+**הוחלט בתכנון (לא נעשה שינוי בקוד עבור זה):** `FileLogger`‏'s `TimestampProvider`‏ (איטרציה 4)
+**לא** מוחלף ב-`IClock`‏ - שתי שאלות שונות לגמרי (`IClock`‏ עונה "כמה זמן חלף", מונוטוני,
+ניתן-לקידום בבדיקות; `TimestampProvider`‏ עונה "מה השעה/תאריך האמיתיים עכשיו" לצורך שורת לוג
+קריאה, לעולם לא מזויף בבדיקות). סוגר את השאלה הפתוחה שהושארה באיטרציה 4.
+
+**נמצא בביקורת (תוקן לפני המימוש):** `DisconnectUseCase::tick`‏ קורא ל-`GameEngine::resign`‏
+**דרך `GameSession::resign`‏**, לא ישירות - `GameSession`‏ קיימת רק בשביל ה-`mutex`‏ שלה, שמגן על
+כל גישה ל-`GameEngine`‏ מפני מרוץ בין ה-tick thread לבין `MakeMoveUseCase`‏ (הרצים על threads
+שונים); קריאה ישירה ל-`GameEngine::resign`‏ הייתה עוקפת את ההגנה הזו בדיוק.
+
+**הערת פרוטוקול (לא באג):** לקוח ששולח `RECONNECT`‏ על socket חדש עשוי לקבל `TABLE_FULL`‏ על אותו
+socket (מ-`onConnected`‏, שרץ אוטומטית בפתיחת socket, לפני שההודעה הראשונה בכלל נשלחת) רגע לפני
+שה-`RECONNECT`‏ עצמו מצליח בפועל (עוקף את `onConnected`‏/`TABLE_FULL`‏ לגמרי דרך
+`ConnectionManager::bindKnown`‏). אין `close()`‏ בענף הדחייה אז זה לא שובר כלום - אבל לקוח ששולח
+`RECONNECT`‏ על socket טרי **חייב להתעלם** מ-`TABLE_FULL`‏ שמגיע על אותו socket ולחכות לתשובת
+ה-`RECONNECT`‏ בפועל.
 
 ---
 
@@ -303,6 +339,12 @@ resign.
 **מטרה:** התחברות אמיתית מול DB; דירוג מתחיל מ-**1200** ונע לפי Elo סטנדרטי.
 
 **מוקד:** `IUserRepository` כ-port; `EloService` היא **פונקציה טהורה** ללא תלות ב-DB כלל.
+
+**ספריית הצפנה כבר נבחרה ונכנסה לפרויקט באיטרציה 5:** `libsodium`‏ - הובאה שם עבור
+`ITokenGenerator`‏/`SodiumTokenGenerator`‏ (‏`randombytes_buf`‏, ל-`sessionToken`‏), בכוונה כדי
+שאיטרציה זו תשתמש **באותה** ספרייה לגיבוב סיסמאות (‏`crypto_pwhash_str`‏/‏`crypto_pwhash_str_verify`‏
+- Argon2id) במקום לבחור ספרייה שנייה נפרדת. נבחרה חוצת-פלטפורמות בכוונה (על פני Windows CNG) בגלל
+יעד הפריסה העתידי ב-Docker (כנראה Linux).
 
 **מחלקות/קבצים:** `IUserRepository`, `SqliteUserRepository`, `EloService`. סכמת DB:
 `users(id, username UNIQUE, password_hash, elo DEFAULT 1200, created_at)`.

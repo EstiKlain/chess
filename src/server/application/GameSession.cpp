@@ -19,3 +19,8 @@ void GameSession::wait(long ms) {
     std::lock_guard<std::mutex> lock(mutex_);
     engine_.wait(ms);
 }
+
+bool GameSession::resign(char color) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return engine_.resign(color);
+}

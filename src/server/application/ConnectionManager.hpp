@@ -8,6 +8,7 @@
 #include <vector>
 
 class GameSession;
+class PlayerSessionRegistry;
 
 // Result of ConnectionManager::onConnected: whether this connection got a
 // seat at the table, and which color it was assigned if so.
@@ -26,8 +27,12 @@ struct ConnectionBinding {
 
 class ConnectionManager {
 public:
-    /// Assigns a connection to a session and a color: first connection gets 'w', second gets 'b', every connection after that is rejected (server only supports 2 players per session today).
-    ConnectionOutcome onConnected(const std::string& connectionId, GameSession* session);
+    /// Assigns a connection to a session and a color: first connection gets 'w', second gets 'b', every connection after that is rejected (server only supports 2 players per session today). A color already reserved in `sessions` (a disconnected player still within their reconnect window) is treated as taken too - it must not be handed to a new, unrelated connection.
+    ConnectionOutcome onConnected(const std::string& connectionId, GameSession* session,
+                                  const PlayerSessionRegistry& sessions);
+
+    /// Directly binds a connectionId to a specific session+color, bypassing the w-then-b-then-reject assignment logic above - used only by ReconnectUseCase, which already knows the exact seat/color a reconnecting player owns (PlayerSessionRegistry::reconnect already enforced that only one connection can claim it).
+    void bindKnown(const std::string& connectionId, GameSession* session, char color);
 
     /// Removes a connection's binding, freeing its color for a future connection.
     void onDisconnected(const std::string& connectionId);

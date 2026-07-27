@@ -34,6 +34,18 @@ PieceDto toPieceDto(const PieceSnapshot& piece) {
     return dto;
 }
 
+std::string reasonToString(GameOverReason reason) {
+    switch (reason) {
+        case GameOverReason::KingCaptured: return "king_captured";
+        case GameOverReason::Resignation: return "resignation";
+    }
+    return "king_captured";
+}
+
+GameOverReason reasonFromString(const std::string& reason) {
+    return (reason == "resignation") ? GameOverReason::Resignation : GameOverReason::KingCaptured;
+}
+
 PieceState stateFromString(const std::string& state) {
     if (state == "Idle") return PieceState::Idle;
     if (state == "Moving") return PieceState::Moving;
@@ -74,6 +86,12 @@ nlohmann::json toJson(const GameSnapshot& snapshot, char recipientColor, const s
     dto.nowMs = snapshot.nowMs;
     dto.role = recipientColor;
     dto.players = players;
+    if (snapshot.winner.has_value()) {
+        dto.winner = std::string(1, *snapshot.winner);
+    }
+    if (snapshot.gameOverReason.has_value()) {
+        dto.reason = reasonToString(*snapshot.gameOverReason);
+    }
 
     dto.pieces.reserve(snapshot.pieces.size());
     for (const PieceSnapshot& piece : snapshot.pieces) {
@@ -89,6 +107,12 @@ GameSnapshot fromDto(const StateUpdateDto& dto) {
     snapshot.cols = dto.cols;
     snapshot.gameOver = dto.gameOver;
     snapshot.nowMs = dto.nowMs;
+    if (dto.winner.has_value()) {
+        snapshot.winner = dto.winner->at(0);
+    }
+    if (dto.reason.has_value()) {
+        snapshot.gameOverReason = reasonFromString(*dto.reason);
+    }
 
     snapshot.pieces.reserve(dto.pieces.size());
     for (const PieceDto& piece : dto.pieces) {

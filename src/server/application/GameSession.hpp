@@ -29,6 +29,9 @@ public:
     /// Forwards to GameEngine::wait under the session's lock - advances the game clock so in-flight motions/cooldowns resolve. Called periodically by main_server.cpp's tick loop, never by a request handler.
     void wait(long ms);
 
+    /// Forwards to GameEngine::resign under the session's lock - required, not optional: MakeMoveUseCase's requestMove/requestJump and the tick thread's wait() already only ever touch GameEngine through this lock, so DisconnectUseCase::tick must too, or it would reintroduce exactly the cross-thread race this lock exists to prevent.
+    bool resign(char color);
+
 private:
     mutable std::mutex mutex_;
     GameEngine engine_;

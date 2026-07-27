@@ -56,6 +56,20 @@ FetchContent_MakeAvailable(json)
 # Threads - websocketpp/asio need it on Linux/gcc (harmless no-op on MSVC).
 find_package(Threads REQUIRED)
 
+# libsodium (Server-Iteration 5) - chosen for ITokenGenerator's real
+# implementation (SodiumTokenGenerator, randombytes_buf-backed) and,
+# deliberately, to be reused unchanged for Iteration 6's password hashing
+# (crypto_pwhash_str/crypto_pwhash_str_verify - Argon2id). Cross-platform on
+# purpose (over e.g. Windows CNG) - this project's confirmed eventual
+# deployment target is a Docker container, almost certainly Linux. Only
+# chess_server links this - chess_server_tests uses a FakeTokenGenerator
+# instead, exactly like it never links the real WebSocketTransport.cpp.
+FetchContent_Declare(libsodium
+    GIT_REPOSITORY https://github.com/robinlinden/libsodium-cmake.git
+    GIT_TAG master)
+set(SODIUM_DISABLE_TESTS ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(libsodium)
+
 # --- chess_server: the new server executable (Server-Iteration 1) ---------
 # Iteration 1: proves a message travels client -> server -> client, with
 # no game logic yet (that starts in Iteration 2). See kungfu_chess_server_plan.md.
@@ -75,6 +89,11 @@ add_executable(chess_server
     src/server/application/LoginUseCase.cpp
     src/server/application/AuthGuard.cpp
     src/server/application/StateFanOut.cpp
+    src/server/application/PlayerSessionRegistry.cpp
+    src/server/application/DisconnectUseCase.cpp
+    src/server/application/ReconnectUseCase.cpp
+    src/server/infrastructure/time/SystemClock.cpp
+    src/server/infrastructure/security/SodiumTokenGenerator.cpp
     src/core/model/Board.cpp
     src/core/rules/Movement.cpp
     src/core/rules/RuleEngine.cpp
@@ -91,6 +110,7 @@ target_link_libraries(chess_server PRIVATE
     asio
     nlohmann_json::nlohmann_json
     Threads::Threads
+    sodium
 )
 target_compile_definitions(chess_server PRIVATE PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
 
@@ -148,6 +168,7 @@ add_executable(chess_gui
     src/view/assets/SpriteLoader.cpp
     src/view/assets/AnimationConfig.cpp
     src/view/hud/PlayerNamesHud.cpp
+    src/view/hud/DisconnectCountdownHud.cpp
     src/core/input/BoardMapper.cpp
     src/core/input/Controller.cpp
     src/core/model/Board.cpp
@@ -249,6 +270,9 @@ add_executable(chess_tests
         tests/unit/server/AuthGuard.tests.cpp
         tests/unit/server/FileLogger.tests.cpp
         tests/unit/server/LoggingTransport.tests.cpp
+        tests/unit/server/PlayerSessionRegistry.tests.cpp
+        tests/unit/server/DisconnectReconnect.tests.cpp
+        tests/unit/server/ReconnectUseCase.tests.cpp
         src/server/protocol/MessageRouter.cpp
         src/shared/protocol/mappers/MoveRequestMapper.cpp
         src/shared/protocol/mappers/GameSnapshotMapper.cpp
@@ -262,6 +286,10 @@ add_executable(chess_tests
         src/server/application/LoginUseCase.cpp
         src/server/application/AuthGuard.cpp
         src/server/application/StateFanOut.cpp
+        src/server/application/PlayerSessionRegistry.cpp
+        src/server/application/DisconnectUseCase.cpp
+        src/server/application/ReconnectUseCase.cpp
+        src/server/infrastructure/time/SystemClock.cpp
         src/core/model/Board.cpp
         src/core/rules/Movement.cpp
         src/core/rules/RuleEngine.cpp

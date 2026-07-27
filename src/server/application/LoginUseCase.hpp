@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 
 #include "server/application/ConnectionManager.hpp"
+#include "server/application/PlayerSessionRegistry.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
 #include "server/domain_ports/ITransport.hpp"
 
@@ -23,13 +24,15 @@
 // the same problem.
 class LoginUseCase {
 public:
-    LoginUseCase(IIdentityStore& identities, ITransport& transport, ConnectionManager& connections);
+    LoginUseCase(IIdentityStore& identities, ITransport& transport, ConnectionManager& connections,
+                 PlayerSessionRegistry& sessions);
 
-    /// Handles a LOGIN event: rejects a connection with no session binding (e.g. a 3rd/rejected connection - see ConnectionManager::onConnected) with TABLE_FULL, rejects a missing/empty username with MALFORMED_PAYLOAD, otherwise records the association and replies LOGIN_OK.
+    /// Handles a LOGIN event: rejects a connection with no session binding (e.g. a 3rd/rejected connection - see ConnectionManager::onConnected) with TABLE_FULL, rejects a missing/empty username with MALFORMED_PAYLOAD, otherwise records the association, registers a fresh sessionToken (Server-Iteration 5, for later RECONNECT), and replies LOGIN_OK with { sessionToken }.
     void handleLogin(const std::string& connectionId, const std::string& requestId, const nlohmann::json& payload);
 
 private:
     IIdentityStore& identities_;
     ITransport& transport_;
     ConnectionManager& connections_;
+    PlayerSessionRegistry& sessions_;
 };

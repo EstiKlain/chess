@@ -22,6 +22,7 @@
 #include "view/assets/AnimationConfig.hpp"
 #include "view/assets/SpriteLoader.hpp"
 #include "view/canvas/ImgCanvas.hpp"
+#include "view/hud/DisconnectCountdownHud.hpp"
 #include "view/hud/PlayerNamesHud.hpp"
 #include "view/render/BoardGeometry.hpp"
 #include "view/render/BoardRenderer.hpp"
@@ -185,6 +186,9 @@ int main()
             BoardRenderer::highlightCell(canvas, controller.selectedRow(), controller.selectedCol(), cellSize);
 
         Hud::drawPlayerNames(canvas, players);
+
+        if (const auto secondsLeft = connection.latestDisconnectCountdown())
+            Hud::drawDisconnectCountdown(canvas, *secondsLeft);
 
         if (snapshot.gameOver)
             BoardRenderer::drawGameOverOverlay(canvas, size.width, size.height);

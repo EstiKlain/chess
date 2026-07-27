@@ -147,3 +147,71 @@ TEST_CASE("ServerConnection: awaitInitialSnapshot returns once a STATE_UPDATE ha
     CHECK(snapshot.rows == 8);
     CHECK(snapshot.cols == 8);
 }
+
+TEST_CASE("ServerConnection: LOGIN_OK's sessionToken is stored and readable via sessionToken()") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+    link.onSend = [&](const std::string&) {
+        link.deliver(R"({"type":"LOGIN_OK","requestId":"1","payload":{"sessionToken":"abc123"}})");
+    };
+
+    connection.login("alice");
+
+    const auto token = connection.sessionToken();
+    REQUIRE(token.has_value());
+    CHECK(*token == "abc123");
+}
+
+TEST_CASE("ServerConnection: sessionToken() is nullopt before any LOGIN_OK is received") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+
+    CHECK_FALSE(connection.sessionToken().has_value());
+}
+
+TEST_CASE("ServerConnection: a delivered DISCONNECT_COUNTDOWN updates latestDisconnectCountdown()") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+
+    link.deliver(R"({"type":"DISCONNECT_COUNTDOWN","requestId":"","payload":{"secondsLeft":7}})");
+
+    const auto seconds = connection.latestDisconnectCountdown();
+    REQUIRE(seconds.has_value());
+    CHECK(*seconds == 7);
+}
+
+TEST_CASE("ServerConnection: a DISCONNECT_COUNTDOWN with secondsLeft 0 clears the countdown back to nullopt") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+
+    link.deliver(R"({"type":"DISCONNECT_COUNTDOWN","requestId":"","payload":{"secondsLeft":7}})");
+    REQUIRE(connection.latestDisconnectCountdown().has_value());
+
+    link.deliver(R"({"type":"DISCONNECT_COUNTDOWN","requestId":"","payload":{"secondsLeft":0}})");
+
+    CHECK_FALSE(connection.latestDisconnectCountdown().has_value());
+}
+
+TEST_CASE("ServerConnection: a malformed DISCONNECT_COUNTDOWN payload is ignored, not thrown") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+
+    link.deliver(R"({"type":"DISCONNECT_COUNTDOWN","requestId":"","payload":{"secondsLeft":"not-a-number"}})");
+
+    CHECK_FALSE(connection.latestDisconnectCountdown().has_value());
+}
+
+TEST_CASE("ServerConnection: a STATE_UPDATE with gameOver true clears any in-effect disconnect countdown") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+
+    link.deliver(R"({"type":"DISCONNECT_COUNTDOWN","requestId":"","payload":{"secondsLeft":5}})");
+    REQUIRE(connection.latestDisconnectCountdown().has_value());
+
+    link.deliver(
+        R"({"type":"STATE_UPDATE","requestId":"","payload":{)"
+        R"("rows":8,"cols":8,"pieces":[],"gameOver":true,"nowMs":1,"role":"w","players":[],)"
+        R"("winner":"b","reason":"resignation"}})");
+
+    CHECK_FALSE(connection.latestDisconnectCountdown().has_value());
+}

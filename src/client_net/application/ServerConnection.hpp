@@ -3,6 +3,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -46,6 +47,12 @@ public:
     GameSnapshot latestSnapshot() const;
     std::vector<PlayerDto> latestPlayers() const;
 
+    /// The sessionToken received in LOGIN_OK's payload (Server-Iteration 5), if login has succeeded - nullopt otherwise. Not yet consumed by anything in this class; stored so a future RECONNECT flow doesn't need to touch LOGIN_OK handling again.
+    std::optional<std::string> sessionToken() const;
+
+    /// Seconds remaining before the opponent auto-resigns, per the most recent DISCONNECT_COUNTDOWN - nullopt when no countdown is in effect (never started, cancelled by a successful reconnect, or the game is already over).
+    std::optional<int> latestDisconnectCountdown() const;
+
     /// Stops the underlying link.
     void stop();
 
@@ -61,6 +68,8 @@ private:
     GameSnapshot snapshot_;
     std::vector<PlayerDto> players_;
     bool hasSnapshot_ = false;
+    std::optional<std::string> sessionToken_;
+    std::optional<int> disconnectCountdownSeconds_;
 
     std::mutex loginMutex_;
     std::condition_variable loginCv_;

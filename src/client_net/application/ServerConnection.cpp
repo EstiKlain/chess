@@ -59,6 +59,16 @@ std::vector<PlayerDto> ServerConnection::latestPlayers() const {
     return players_;
 }
 
+std::optional<std::string> ServerConnection::sessionToken() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return sessionToken_;
+}
+
+std::optional<int> ServerConnection::latestDisconnectCountdown() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return disconnectCountdownSeconds_;
+}
+
 void ServerConnection::stop() {
     link_.stop();
 }
@@ -80,12 +90,49 @@ void ServerConnection::onMessage(const std::string& rawJson) {
                 snapshot_ = std::move(newSnapshot);
                 players_ = dto.players;
                 hasSnapshot_ = true;
+                // A disconnect countdown only ever makes sense while the game
+                // is still ongoing - once gameOver is true (whether from a
+                // king capture or an auto-resign timeout), any stale
+                // countdown value must not keep being displayed.
+                if (snapshot_.gameOver) {
+                    disconnectCountdownSeconds_ = std::nullopt;
+                }
             }
             snapshotCv_.notify_all();
         } catch (const std::exception&) {
             // Malformed payload - ignore, keep the last good snapshot.
         }
         return;
+    }
+
+    if (envelope.type == "DISCONNECT_COUNTDOWN") {
+        try {
+            const int secondsLeft = envelope.payload.value("secondsLeft", 0);
+            std::lock_guard<std::mutex> lock(mutex_);
+            // secondsLeft <= 0 is the server's explicit "the countdown is
+            // over" signal (ReconnectUseCase sends this on a successful
+            // reconnect) - clear rather than display a non-positive number.
+            disconnectCountdownSeconds_ = (secondsLeft > 0) ? std::optional<int>(secondsLeft) : std::nullopt;
+        } catch (const std::exception&) {
+            // Malformed payload (e.g. secondsLeft not an integer) - ignore,
+            // keep whatever countdown state was already in effect.
+        }
+        return;
+    }
+
+    if (envelope.type == "LOGIN_OK") {
+        // Independent of the loginMutex_-guarded block below - this only
+        // ever reads the sessionToken field, guarded by mutex_ alone, never
+        // nested with loginMutex_.
+        try {
+            if (envelope.payload.contains("sessionToken")) {
+                const std::string token = envelope.payload.at("sessionToken").get<std::string>();
+                std::lock_guard<std::mutex> lock(mutex_);
+                sessionToken_ = token;
+            }
+        } catch (const std::exception&) {
+            // Malformed sessionToken field - ignore, keep whatever token (if any) was already stored.
+        }
     }
 
     if (envelope.type == "LOGIN_OK" || envelope.type == "ERROR") {

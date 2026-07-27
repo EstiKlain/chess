@@ -3,6 +3,7 @@
 #include <optional>
 #include <vector>
 #include "model/Piece.hpp"
+#include "rules/GameOverRule.hpp"
 struct MotionSnapshot
 {
     int fromRow, fromCol;
@@ -30,5 +31,7 @@ struct GameSnapshot
     int cols = 0;
     std::vector<PieceSnapshot> pieces;
     bool gameOver = false;
+    std::optional<char> winner;
+    std::optional<GameOverReason> gameOverReason;
     long nowMs = 0;
 };

@@ -13,6 +13,7 @@
 #include "server/application/ConnectionManager.hpp"
 #include "server/application/GameSession.hpp"
 #include "server/application/MakeMoveUseCase.hpp"
+#include "server/application/PlayerSessionRegistry.hpp"
 #include "server/domain_ports/IEventBus.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
 #include "server/domain_ports/ITransport.hpp"
@@ -60,6 +61,14 @@ private:
     std::unordered_map<std::string, std::string> names_;
 };
 
+class FakeTokenGenerator : public ITokenGenerator {
+public:
+    std::string generate() override { return "token-" + std::to_string(++counter_); }
+
+private:
+    int counter_ = 0;
+};
+
 Board makeBoard(std::initializer_list<std::initializer_list<std::string>> rows) {
     RawBoard raw;
     for (const auto& row : rows) {
@@ -75,8 +84,10 @@ pieceRules::PieceRulesRegistry registry;
 TEST_CASE("MakeMoveUseCase: a legal MOVE publishes MoveApplied and sends STATE_UPDATE to both players") {
     GameSession session(GameEngine(makeBoard({{"wR", ".", ".", "."}, {"bR", ".", ".", "."}}), registry));
     ConnectionManager connections;
-    connections.onConnected("white-conn", &session);
-    connections.onConnected("black-conn", &session);
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    connections.onConnected("white-conn", &session, sessions);
+    connections.onConnected("black-conn", &session, sessions);
 
     FakeEventBus bus;
     FakeTransport transport;
@@ -117,8 +128,10 @@ TEST_CASE("MakeMoveUseCase: a legal MOVE publishes MoveApplied and sends STATE_U
 TEST_CASE("MakeMoveUseCase: an illegal MOVE sends ERROR/ILLEGAL_MOVE only to the sender") {
     GameSession session(GameEngine(makeBoard({{"wR", ".", ".", "."}, {"bR", ".", ".", "."}}), registry));
     ConnectionManager connections;
-    connections.onConnected("white-conn", &session);
-    connections.onConnected("black-conn", &session);
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    connections.onConnected("white-conn", &session, sessions);
+    connections.onConnected("black-conn", &session, sessions);
 
     FakeEventBus bus;
     FakeTransport transport;
@@ -141,8 +154,10 @@ TEST_CASE("MakeMoveUseCase: an illegal MOVE sends ERROR/ILLEGAL_MOVE only to the
 TEST_CASE("MakeMoveUseCase: JUMP uses GameEngine::requestJump's single-position shape, not MOVE's") {
     GameSession session(GameEngine(makeBoard({{"wR", ".", ".", "."}}), registry));
     ConnectionManager connections;
-    connections.onConnected("white-conn", &session);
-    connections.onConnected("black-conn", &session);
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    connections.onConnected("white-conn", &session, sessions);
+    connections.onConnected("black-conn", &session, sessions);
 
     FakeEventBus bus;
     FakeTransport transport;
