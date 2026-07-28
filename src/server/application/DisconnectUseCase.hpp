@@ -2,6 +2,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "server/application/ConnectionManager.hpp"
 #include "server/application/PlayerSessionRegistry.hpp"
@@ -35,4 +36,11 @@ private:
     // every tick() call for tokens no longer disconnected (reconnected or
     // resigned-and-removed), so this never grows unboundedly.
     std::unordered_map<std::string, int> lastSentSecondsLeft_;
+
+    // Scratch buffer for tick()'s own pruning pass, reused across calls via
+    // clear() (which keeps the bucket array allocated) rather than declared
+    // fresh each call - avoids a heap allocation every 50ms once its
+    // capacity has grown to match the peak number of concurrently
+    // disconnected entries. Holds no meaning outside a single tick() call.
+    std::unordered_set<std::string> stillDisconnectedScratch_;
 };

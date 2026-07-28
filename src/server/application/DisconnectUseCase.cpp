@@ -19,12 +19,12 @@ void DisconnectUseCase::onDisconnected(const std::string& connectionId) {
 void DisconnectUseCase::tick(long nowMs) {
     const auto disconnected = sessions_.disconnectedEntries();
 
-    std::unordered_set<std::string> stillDisconnected;
+    stillDisconnectedScratch_.clear();
     for (const auto& [token, entry] : disconnected) {
-        stillDisconnected.insert(token);
+        stillDisconnectedScratch_.insert(token);
     }
     for (auto it = lastSentSecondsLeft_.begin(); it != lastSentSecondsLeft_.end();) {
-        if (stillDisconnected.count(it->first) == 0) {
+        if (stillDisconnectedScratch_.count(it->first) == 0) {
             it = lastSentSecondsLeft_.erase(it);
         } else {
             ++it;
