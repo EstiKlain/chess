@@ -11,9 +11,4 @@ namespace server_config
     // without any drawing, since rendering is the client's job.
     constexpr int kTickIntervalMs = 50;
 
-    // How long a disconnected player's seat stays reserved before an
-    // automatic resign (Server-Iteration 5). Checked via IClock::nowMs()
-    // polling from the same tick thread, never a scheduled callback.
-    constexpr long kReconnectWindowMs = 20000;
-
 }

@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "client_net/application/AutoReconnector.hpp"
 #include "client_net/application/ServerConnection.hpp"
 #include "client_net/infrastructure/ClientLogger.hpp"
 #include "client_net/infrastructure/WebSocketClientLink.hpp"
@@ -24,6 +25,7 @@
 #include "view/canvas/ImgCanvas.hpp"
 #include "view/hud/DisconnectCountdownHud.hpp"
 #include "view/hud/PlayerNamesHud.hpp"
+#include "view/hud/ReconnectingHud.hpp"
 #include "view/render/BoardGeometry.hpp"
 #include "view/render/BoardRenderer.hpp"
 #include "view/render/PieceAnimator.hpp"
@@ -138,6 +140,16 @@ int main()
     // server actually says.
     const GameSnapshot initial = connection.awaitInitialSnapshot();
 
+    // Must be declared AFTER `connection` (and everything connection itself
+    // depends on: link/realLink/clientLogger) - this is a safety
+    // requirement, not just a convenient spot. C++ destroys locals in
+    // reverse declaration order, so declaring it here guarantees
+    // AutoReconnector's destructor (which stops and joins its background
+    // worker thread) runs BEFORE connection/link/realLink start being torn
+    // down. Declaring it earlier would let the worker thread call
+    // connection.reconnect() on an object already mid-destruction.
+    AutoReconnector reconnector(connection);
+
     const int cellSize = config::CELL_SIZE;
 
     Board mirrorBoard;
@@ -189,6 +201,11 @@ int main()
 
         if (const auto secondsLeft = connection.latestDisconnectCountdown())
             Hud::drawDisconnectCountdown(canvas, *secondsLeft);
+
+        if (reconnector.isReconnecting())
+            Hud::drawReconnecting(canvas, reconnector.secondsRemaining().value_or(0));
+        else if (reconnector.hasFailed())
+            Hud::drawConnectionLost(canvas);
 
         if (snapshot.gameOver)
             BoardRenderer::drawGameOverOverlay(canvas, size.width, size.height);

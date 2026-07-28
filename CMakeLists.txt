@@ -154,6 +154,8 @@ add_custom_command(TARGET chess_game POST_BUILD
 add_executable(chess_gui
     src/app/main_gui.cpp
     src/client_net/application/ServerConnection.cpp
+    src/client_net/application/AutoReconnector.cpp
+    src/client_net/application/SnapshotCache.cpp
     src/client_net/infrastructure/WebSocketClientLink.cpp
     src/client_net/infrastructure/ClientLogger.cpp
     src/shared/logging/FileLogger.cpp
@@ -169,6 +171,7 @@ add_executable(chess_gui
     src/view/assets/AnimationConfig.cpp
     src/view/hud/PlayerNamesHud.cpp
     src/view/hud/DisconnectCountdownHud.cpp
+    src/view/hud/ReconnectingHud.cpp
     src/core/input/BoardMapper.cpp
     src/core/input/Controller.cpp
     src/core/model/Board.cpp
@@ -325,7 +328,10 @@ add_executable(chess_tests
         tests/unit/client_net/doctest_main.cpp
         tests/unit/client_net/ServerConnection.tests.cpp
         tests/unit/client_net/ClientLogger.tests.cpp
+        tests/unit/client_net/AutoReconnector.tests.cpp
         src/client_net/application/ServerConnection.cpp
+        src/client_net/application/AutoReconnector.cpp
+    src/client_net/application/SnapshotCache.cpp
         src/client_net/infrastructure/ClientLogger.cpp
         src/shared/protocol/mappers/GameSnapshotMapper.cpp
         src/shared/protocol/mappers/MoveRequestMapper.cpp

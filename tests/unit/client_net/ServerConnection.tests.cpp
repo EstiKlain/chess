@@ -1,6 +1,7 @@
 #include "doctest.h"
 
 #include <functional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -20,8 +21,12 @@ namespace {
 class FakeServerLink : public IServerLink {
 public:
     void connect(const std::string& host, uint16_t port) override {
+        if (throwOnConnect) {
+            throw std::runtime_error("simulated connect failure");
+        }
         connectedHost = host;
         connectedPort = port;
+        ++connectCount;
     }
     void send(const std::string& rawJson) override {
         sent.push_back(rawJson);
@@ -30,6 +35,7 @@ public:
         }
     }
     void setOnMessage(OnMessageHandler handler) override { onMessage = std::move(handler); }
+    void setOnClose(OnCloseHandler handler) override { onClose = std::move(handler); }
     void stop() override {}
 
     // Test helper: simulates the server pushing a message.
@@ -37,12 +43,31 @@ public:
         if (onMessage) onMessage(rawJson);
     }
 
+    // Test helper: simulates the link dying (a dropped connection).
+    void simulateClose() {
+        if (onClose) onClose();
+    }
+
     std::string connectedHost;
     uint16_t connectedPort = 0;
+    int connectCount = 0;
+    bool throwOnConnect = false;
     std::vector<std::string> sent;
     OnMessageHandler onMessage;
+    OnCloseHandler onClose;
     std::function<void(const std::string&)> onSend;
 };
+
+// Extracts the requestId a RECONNECT (or any) envelope was sent with, so
+// tests can build a matching reply without hardcoding request-id counter
+// values (which would make tests brittle against unrelated earlier sends).
+std::string requestIdOf(const std::string& rawJson) {
+    const auto key = rawJson.find("\"requestId\":\"");
+    REQUIRE(key != std::string::npos);
+    const auto start = key + std::string("\"requestId\":\"").size();
+    const auto end = rawJson.find('"', start);
+    return rawJson.substr(start, end - start);
+}
 
 }  // namespace
 
@@ -214,4 +239,78 @@ TEST_CASE("ServerConnection: a STATE_UPDATE with gameOver true clears any in-eff
         R"("winner":"b","reason":"resignation"}})");
 
     CHECK_FALSE(connection.latestDisconnectCountdown().has_value());
+}
+
+TEST_CASE("ServerConnection: reconnect() without ever having logged in returns Retry, sends nothing") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+
+    const auto outcome = connection.reconnect();
+
+    CHECK(outcome == ReconnectOutcome::Retry);
+    CHECK(link.sent.empty());
+}
+
+TEST_CASE("ServerConnection: reconnect() succeeds when a matching STATE_UPDATE arrives") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+    link.onSend = [&](const std::string& rawJson) {
+        if (rawJson.find("\"type\":\"LOGIN\"") != std::string::npos) {
+            link.deliver(R"({"type":"LOGIN_OK","requestId":")" + requestIdOf(rawJson) +
+                         R"(","payload":{"sessionToken":"tok-1"}})");
+        } else if (rawJson.find("\"type\":\"RECONNECT\"") != std::string::npos) {
+            link.deliver(
+                R"({"type":"STATE_UPDATE","requestId":")" + requestIdOf(rawJson) +
+                R"(","payload":{"rows":8,"cols":8,"pieces":[],"gameOver":false,"nowMs":1,"role":"w","players":[]}})");
+        }
+    };
+    connection.connect("host", 1);
+    REQUIRE(connection.login("alice"));
+    link.connectCount = 0;  // isolate the reconnect's own redial from login's initial connect()
+
+    const auto outcome = connection.reconnect();
+
+    CHECK(outcome == ReconnectOutcome::Success);
+    CHECK(link.connectCount == 1);
+}
+
+TEST_CASE("ServerConnection: reconnect() returns Retry when the link fails to redial") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+    link.onSend = [&](const std::string& rawJson) {
+        if (rawJson.find("\"type\":\"LOGIN\"") != std::string::npos) {
+            link.deliver(R"({"type":"LOGIN_OK","requestId":")" + requestIdOf(rawJson) +
+                         R"(","payload":{"sessionToken":"tok-1"}})");
+        }
+    };
+    REQUIRE(connection.login("alice"));
+    link.throwOnConnect = true;
+    link.sent.clear();  // discard the earlier LOGIN send, isolate reconnect()'s own behavior
+
+    const auto outcome = connection.reconnect();
+
+    CHECK(outcome == ReconnectOutcome::Retry);
+    CHECK(link.sent.empty());  // never got far enough to send RECONNECT
+}
+
+TEST_CASE("ServerConnection: reconnect() returns Retry (not a permanent failure) on a SESSION_EXPIRED reply") {
+    // Deliberately not a terminal outcome - see ReconnectOutcome's own doc
+    // comment for why a single SESSION_EXPIRED reply can be a false
+    // positive from a race with the server's own disconnect detection.
+    FakeServerLink link;
+    ServerConnection connection(link);
+    link.onSend = [&](const std::string& rawJson) {
+        if (rawJson.find("\"type\":\"LOGIN\"") != std::string::npos) {
+            link.deliver(R"({"type":"LOGIN_OK","requestId":")" + requestIdOf(rawJson) +
+                         R"(","payload":{"sessionToken":"tok-1"}})");
+        } else if (rawJson.find("\"type\":\"RECONNECT\"") != std::string::npos) {
+            link.deliver(R"({"type":"ERROR","requestId":")" + requestIdOf(rawJson) +
+                         R"(","payload":{"code":"SESSION_EXPIRED","message":"no game to reconnect to"}})");
+        }
+    };
+    REQUIRE(connection.login("alice"));
+
+    const auto outcome = connection.reconnect();
+
+    CHECK(outcome == ReconnectOutcome::Retry);
 }

@@ -4,9 +4,9 @@
 #include <unordered_set>
 
 #include "server/application/GameSession.hpp"
-#include "server/config.hpp"
 #include "server/protocol/Envelope.hpp"
 #include "server/protocol/dto/DisconnectDto.hpp"
+#include "shared/protocol/config.hpp"
 
 DisconnectUseCase::DisconnectUseCase(PlayerSessionRegistry& sessions, ConnectionManager& connections,
                                       ITransport& transport, IClock& clock)

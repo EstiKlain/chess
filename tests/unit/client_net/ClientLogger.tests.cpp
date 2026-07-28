@@ -18,19 +18,24 @@ public:
     }
     void send(const std::string& rawJson) override { sent.push_back(rawJson); }
     void setOnMessage(OnMessageHandler handler) override { onMessage = std::move(handler); }
+    void setOnClose(OnCloseHandler handler) override { onClose = std::move(handler); }
     void stop() override { stopped = true; }
 
     std::string connectedHost;
     uint16_t connectedPort = 0;
     std::vector<std::string> sent;
     OnMessageHandler onMessage;
+    OnCloseHandler onClose;
     bool stopped = false;
 };
 
 class FakeLogger : public ILogger {
 public:
     void log(LogDirection direction, const std::string& connectionId, const std::string& rawJson) override {
-        calls.emplace_back(direction == LogDirection::Sent ? "SENT" : "RECEIVED", connectionId, rawJson);
+        std::string label = "RECEIVED";
+        if (direction == LogDirection::Sent) label = "SENT";
+        else if (direction == LogDirection::Closed) label = "CLOSED";
+        calls.emplace_back(label, connectionId, rawJson);
     }
 
     std::vector<std::tuple<std::string, std::string, std::string>> calls;
@@ -84,6 +89,22 @@ TEST_CASE("ClientLogger: an incoming message logs RECEIVED before invoking the o
 
     REQUIRE(handlerCalls.size() == 1);
     CHECK(handlerCalls[0] == "incoming");
+}
+
+TEST_CASE("ClientLogger: a link close logs CLOSED before invoking the original handler, unchanged") {
+    FakeServerLink real;
+    FakeLogger logger;
+    ClientLogger link(real, logger);
+
+    bool handlerCalled = false;
+    link.setOnClose([&]() { handlerCalled = true; });
+
+    REQUIRE(real.onClose);
+    real.onClose();
+
+    REQUIRE(logger.calls.size() == 1);
+    CHECK(std::get<0>(logger.calls[0]) == "CLOSED");
+    CHECK(handlerCalled);
 }
 
 TEST_CASE("ClientLogger: stop() passes through untouched, with no logging") {

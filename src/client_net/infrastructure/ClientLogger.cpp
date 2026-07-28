@@ -20,6 +20,13 @@ void ClientLogger::setOnMessage(OnMessageHandler handler) {
     });
 }
 
+void ClientLogger::setOnClose(OnCloseHandler handler) {
+    real_.setOnClose([this, handler = std::move(handler)]() {
+        logger_.log(LogDirection::Closed, "", "");
+        handler();
+    });
+}
+
 void ClientLogger::stop() {
     real_.stop();
 }

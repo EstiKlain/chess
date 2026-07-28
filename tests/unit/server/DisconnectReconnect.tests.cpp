@@ -12,9 +12,9 @@
 #include "server/application/DisconnectUseCase.hpp"
 #include "server/application/GameSession.hpp"
 #include "server/application/PlayerSessionRegistry.hpp"
-#include "server/config.hpp"
 #include "server/domain_ports/IClock.hpp"
 #include "server/domain_ports/ITransport.hpp"
+#include "shared/protocol/config.hpp"
 
 namespace {
 

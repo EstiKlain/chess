@@ -306,11 +306,22 @@ reconnect מצליח - בלעדיה, ה-HUD אצל היריב היה נשאר ת
 עם `gameOver:true`‏ - זה מכסה גם את נתיב ה-timeout (resign אוטומטי), בלי לגעת ב-`DisconnectUseCase`‏
 בכלל.
 
-**עדיין לא נבנה, נדחה בכוונה לשיחת תכנון נפרדת (client half B):** הצד של **השחקן שהתנתק עצמו** -
-שה-`chess_gui`‏ שלו יזהה שהחיבור נפל וישלח `RECONNECT`‏ אוטומטית עם ה-`sessionToken`‏ השמור.
-`IServerLink`‏ אין לו היום שום callback ל"החיבור מת" (בניגוד ל-`ITransport::setOnClose`‏ בצד
-השרת), ו-`ServerConnection`‏ מחזיקה `IServerLink&‏`‏ (רפרנס, לא ניתן להחלפה) - שאלה ארכיטקטונית
-אמיתית שעדיין לא הוכרעה.
+**נסגר בפועל (client half B, שיחת תכנון + מספר סבבי CR נפרדים):** הצד של **השחקן שהתנתק עצמו**
+נבנה. `IServerLink`‏ קיבל `setOnClose`‏; `WebSocketClientLink`‏ עובד ב-perpetual mode (מאומת
+בניסוי מבודד לפני המימוש) ומאפשר reconnect על אותו אובייקט (‏`ioThread_`‏ מוקם פעם אחת ב-
+constructor, לא ב-`connect()`‏, אחרת קריסה מובטחת). `ServerConnection`‏ קיבלה מתודה סימטרית
+ל-`login()`‏ - `reconnect()‏`‏ (ניסיון בודד, מתואם לפי `requestId`‏, מחזירה `Success`‏/`Retry`‏
+בלבד - **בלי** `GiveUp`‏ מיידי על `SESSION_EXPIRED`‏, כדי לא ליפול קורבן לרייס מול זיהוי הניתוק
+בצד השרת). מחלקה חדשה, `AutoReconnector`‏, מחזיקה את מדיניות ה-retry (thread רקע קבוע אחד,
+לא אחד לכל ניתוק) - בדיוק אותה חלוקה כמו `DisconnectUseCase`‏/`ReconnectUseCase`‏ בצד השרת.
+`kReconnectWindowMs`‏ עבר ל-`shared/protocol/config.hpp`‏ - מקור אמת אחד לשני הצדדים.
+
+**שרשרת תיקוני אינטגרציה שנמצאו בסבבי CR נפרדים, כולם נסגרו לפני המימוש:** הוספת timeout
+ל-`connect()`‏ (למניעת תקיעה נצחית) חשפה use-after-free (משתני סנכרון מקומיים שנתפסו
+ב-reference, בעוד ה-handler עדיין רשום אחרי חזרה מוקדמת) - תוקן עם `shared_ptr`‏ הנתפס
+by value; זה בתורו חשף דליפת "חיבור זומבי" בזמן timeout - תוקן עם `con->terminate(ec)`‏.
+גם `ClientLogger`‏ (ה-`IServerLink`‏ שבאמת בשימוש ב-production) ו-`requestIdCounter_`‏
+(‏`std::atomic`‏ עכשיו, נקרא משני threads) נמצאו כפערים שהתוכנית המקורית פספסה.
 
 **בדיקות:** עם fake clock - מתקדמים 19s + `RECONNECT` => מתבטל; מתקדמים 20s בלי `RECONNECT` =>
 resign.

@@ -15,6 +15,7 @@ std::string directionLabel(LogDirection direction) {
     switch (direction) {
         case LogDirection::Sent: return "SENT";
         case LogDirection::Received: return "RECEIVED";
+        case LogDirection::Closed: return "CLOSED";
     }
     return "UNKNOWN";
 }

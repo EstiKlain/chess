@@ -29,6 +29,9 @@ public:
     /// Registers a wrapping handler with the real link that logs RECEIVED, then invokes the given handler unchanged.
     void setOnMessage(OnMessageHandler handler) override;
 
+    /// Registers a wrapping handler with the real link that logs CLOSED, then invokes the given handler unchanged.
+    void setOnClose(OnCloseHandler handler) override;
+
     /// Pure passthrough to the real link's stop().
     void stop() override;
 

@@ -2,10 +2,15 @@
 
 #include <string>
 
-/// Which way a logged message crossed the wire.
+/// Which way a logged message crossed the wire. Closed is not a message
+/// direction in the same sense as Sent/Received - it records that the
+/// connection itself died (Server-Iteration 5's client-side auto-reconnect
+/// follow-up), reusing this same log stream rather than inventing a
+/// separate one for a single event type.
 enum class LogDirection {
     Sent,
     Received,
+    Closed,
 };
 
 class ILogger {
