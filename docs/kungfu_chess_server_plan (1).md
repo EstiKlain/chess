@@ -345,36 +345,56 @@ socket (מ-`onConnected`‏, שרץ אוטומטית בפתיחת socket, לפנ
 
 ---
 
-## Server-Iteration 6 — SQLite: יוזר+סיסמה+Elo
+## Server-Iteration 6 — PostgreSQL: יוזר+סיסמה+Elo
 
-**מטרה:** התחברות אמיתית מול DB; דירוג מתחיל מ-**1200** ונע לפי Elo סטנדרטי.
+**מטרה:** התחברות אמיתית מול DB‏; דירוג מתחיל מ-**1200** ונע לפי Elo‏ סטנדרטי.
 
-**מוקד:** `IUserRepository` כ-port; `EloService` היא **פונקציה טהורה** ללא תלות ב-DB כלל.
+**מוקד:** `IUserRepository`‏ כ-port‏; `EloService`‏ היא **פונקציה טהורה** ללא תלות ב-DB‏ כלל.
+
+**שינוי מ-SQLite‏ ל-PostgreSQL‏ (הוחלט בתכנון בפועל של האיטרציה, לא נשאר כניחוש SQLite‏
+המקורי):** הפרויקט עובר ל-Docker‏/Docker Compose‏ כשלב הבא, ו-`docs/Server_Design.md`‏ כבר קובע
+PostgreSQL‏ למידע קבוע. כתיבת מימוש SQLite‏ כעת הייתה עבודה שנזרקת כמעט מיד. **המימוש הקונקרטי
+מאחורי `IUserRepository`‏ נדחה בפועל לשלב ה-Docker‏** (‏`libpq`‏ אינו ניתן ל-FetchContent‏ פשוט
+ב-Windows‏/MSVC‏ בלי vcpkg‏, שהפרויקט הזה לא משתמש בו - בעוד ב-Linux‏/Docker‏ זו התקנה טריוויאלית).
+`PostgresUserRepository.hpp`‏/`.cpp`‏ (‏`src/server/infrastructure/persistence/`‏) כתובים כבר עכשיו
+כקוד מלא, אך **לא רשומים ב-CMakeLists.txt‏** ולא מתקמפלים עד שה-Docker‏ יגיע. `InMemoryUserRepository`‏
+(אותו `src/server/infrastructure/persistence/`‏) הוא המימוש שרץ בפועל היום, מאחורי אותו port‏ בדיוק -
+ההחלפה כשה-Docker‏ יגיע היא שורה אחת ב-`main_server.cpp`‏ (בנוסף לרישום הקובץ הקיים ב-CMake‏).
 
 **ספריית הצפנה כבר נבחרה ונכנסה לפרויקט באיטרציה 5:** `libsodium`‏ - הובאה שם עבור
-`ITokenGenerator`‏/`SodiumTokenGenerator`‏ (‏`randombytes_buf`‏, ל-`sessionToken`‏), בכוונה כדי
-שאיטרציה זו תשתמש **באותה** ספרייה לגיבוב סיסמאות (‏`crypto_pwhash_str`‏/‏`crypto_pwhash_str_verify`‏
-- Argon2id) במקום לבחור ספרייה שנייה נפרדת. נבחרה חוצת-פלטפורמות בכוונה (על פני Windows CNG) בגלל
-יעד הפריסה העתידי ב-Docker (כנראה Linux).
+`ITokenGenerator`‏/`SodiumTokenGenerator`‏ (‏`randombytes_buf`‏, ל-`sessionToken`‏). אותה ספרייה
+משמשת גם לגיבוב סיסמאות (‏`crypto_pwhash_str`‏/‏`crypto_pwhash_str_verify`‏ - Argon2id), אך דרך
+מחלקה נפרדת, `SodiumPasswordHasher`‏ (‏`IPasswordHasher`‏ כ-port‏ נפרד), לא מיזוג לתוך
+`SodiumTokenGenerator`‏ עצמה - שתי אחריויות עצמאיות-להחלפה, כמו כל שאר ה-port‏-אחד-adapter‏-אחד
+בפרויקט הזה. נבחרה חוצת-פלטפורמות בכוונה (על פני Windows CNG‏) בגלל יעד הפריסה העתידי ב-Docker‏
+(כנראה Linux‏).
 
-**מחלקות/קבצים:** `IUserRepository`, `SqliteUserRepository`, `EloService`. סכמת DB:
-`users(id, username UNIQUE, password_hash, elo DEFAULT 1200, created_at)`.
+**מחלקות/קבצים:** `IUserRepository`‏, `InMemoryUserRepository`‏, `PostgresUserRepository`‏
+(כתוב, לא מקומפל), `IPasswordHasher`‏, `SodiumPasswordHasher`‏, `EloService`‏, `EloUpdateUseCase`‏.
+סכמת DB‏: `users(id, username UNIQUE, password_hash, elo DEFAULT 1200, created_at)`‏.
 
-**התנהגות נדרשת:** הרשמה אם המשתמש לא קיים, אימות סיסמה אם קיים; דירוג מתעדכן **רק** בסיום
-משחק שמקורו ב-Play (Room הוחלט כ-unranked - ראו איטרציה 8).
+**התנהגות נדרשת:** הרשמה אם המשתמש לא קיים, אימות סיסמה אם קיים (‏`INVALID_CREDENTIALS`‏ - כבר
+היה שמור בטבלת קודי השגיאה למעלה, מומש רק עכשיו); דירוג מתעדכן **רק** בסיום משחק
+`ratingEligible`‏ (שדה בוליאני על `GameSession`‏, לא `GameOrigin{Play,Room}`‏ - כך `EloUpdateUseCase`‏
+לא צריכה להכיר שום סוג משחק בשם, גם לא Play‏; Room‏ יבנה עם `ratingEligible=false`‏ ב-Iteration 8‏).
 
-**שאלות פתוחות שנמצאו בביקורת (להכריע כשמתחילים לתכנן איטרציה זו, לא עכשיו):**
-- **`IIdentityStore` מול `IUserRepository`:** Iteration 3 בנתה `IIdentityStore`/`InMemoryIdentityStore`
-  (connectionId->username בזיכרון, בלי סיסמה). איטרציה זו מוסיפה `IUserRepository`/DB אמיתי ומשנה
-  את payload ה-`LOGIN` (מוסיפה `password`). לא הוכרע: `IIdentityStore` מוחלף, נשאר כ-cache
-  ברמת-חיבור מעל `IUserRepository`, או שניהם ממשיכים לחיות זה לצד זה? כך או כך `LoginUseCase`
-  (מ-Iteration 3) יזדקק לעריכה - זה לא רשום כקובץ שאיטרציה זו נוגעת בו, וצריך להיות.
-- **מי קורא ל-`EloService::apply(...)` ומתי:** לא מצוין באף איטרציה (6, 7, או 9) איזה use-case
-  בדיוק מזהה "סיום משחק שמקורו ב-Play" ומפעיל את חישוב ה-Elo, ואיך `GameSession` בכלל "יודע"
-  שהוא Play-origin ולא Room-origin (`GameSession` כפי שנבנה ב-Iteration 2 אין לו שדה כזה).
+**מי קורא ל-`EloService::apply(...)`‏ ומתי (שאלה פתוחה שנפתרה):** לא bus subscriber‏ -
+`EloUpdateUseCase::checkAndApply`‏ נקראת ישירות מה-tick loop‏ ב-`main_server.cpp`‏, אחרי
+`disconnectUseCase.tick(...)`‏ ולפני `StateFanOut::broadcast`‏. הסיבה: `gameOver_`‏ הופך ל-true‏
+רק בתוך `GameEngine::wait()`‏ (tick thread‏ בלבד), ואילו אירוע ה-bus‏ `"MoveApplied"`‏ יורה כבר
+ברגע קבלת המהלך - לפני שלכידת-מלך עם זמן-תזוזה נפתרת בפועל. אין אירוע bus‏ חדש בכלל.
 
-**בדיקות:** `EloService` - unit tests טהורים עם וקטור מקרים ידועים (1200 מול 1200; 1200
-מנצח 1600 וכו'), בלי DB בכלל. `SqliteUserRepository` - integration test על DB זמני.
+**`IIdentityStore`‏ מול `IUserRepository`‏ (שאלה פתוחה שנפתרה):** שניהם ממשיכים לחיות זה לצד
+זה, לא מוחלפים. `IIdentityStore`‏ נשאר port‏ מהיר, connectionId‏->username‏ בזיכרון, בלי סיסמה -
+נקרא ללא תנאי בכל tick‏ על ידי `StateFanOut`‏. `IUserRepository`‏ נקרא רק בתוך `LoginUseCase`‏
+ו-(פעם אחת למשחק) `EloUpdateUseCase`‏ - לעולם לא ב-tick‏ הרציף. Elo‏ מוצג ללקוח דרך cache‏ נוסף,
+`ConnectionBinding.elo`‏ על `ConnectionManager`‏ (מתעדכן ב-login‏/reconnect‏/סיום-משחק בלבד) -
+לא קריאה חיה ל-`IUserRepository`‏ מ-`StateFanOut`‏.
+
+**בדיקות:** `EloService`‏ - unit tests‏ טהורים עם וקטור מקרים ידועים (1200 מול 1200; 1200
+מנצח 1600 וכו'), בלי DB‏ בכלל. `PostgresUserRepository`‏ - ללא בדיקה בשלב זה (לא מקומפל, אין
+`pqxx`‏ מקושר לשום target‏) - `InMemoryUserRepository`‏ מכוסה ב-unit tests‏ עם `LoginUseCase`‏/
+`EloUpdateUseCase`‏.
 
 ---
 

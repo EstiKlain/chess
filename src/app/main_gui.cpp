@@ -47,7 +47,7 @@ namespace
         names.reserve(players.size());
         for (const PlayerDto &player : players)
         {
-            names.push_back(PlayerName{player.color, player.name});
+            names.push_back(PlayerName{player.color, player.name, player.elo});
         }
         return names;
     }
@@ -80,6 +80,14 @@ int main()
     std::string username;
     std::getline(std::cin, username);
 
+    // Plain std::cin - typed characters are visible on screen. Masking
+    // console input needs a character-at-a-time read (_getch() loop instead
+    // of getline) - a real but separate UX task, deliberately not done here
+    // (see docs/kungfu_chess_server_plan (1).md's Iteration 6 section).
+    std::cout << "Password: ";
+    std::string password;
+    std::getline(std::cin, password);
+
     // logs/ doubles as the natural future Docker volume mount point - the
     // path is decided here, at the composition root, and nowhere else;
     // FileLogger itself never hardcodes a path (see CLAUDE.md's
@@ -105,7 +113,7 @@ int main()
         return 1;
     }
 
-    if (!connection.login(username))
+    if (!connection.login(username, password))
     {
         std::cerr << "Login failed: " << connection.lastError() << '\n';
         return 1;

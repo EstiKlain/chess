@@ -11,4 +11,12 @@ namespace server_config
     // without any drawing, since rendering is the client's job.
     constexpr int kTickIntervalMs = 50;
 
+    // Elo K-factor: how much a single game's result can move a rating.
+    constexpr int kEloKFactor = 32;
+
+    // Starting rating for a brand-new account. Also hardcoded as the SQL
+    // DEFAULT in PostgresUserRepository's schema (SQL can't reference a C++
+    // constant) - keep both in sync by hand if this ever changes.
+    constexpr int kInitialElo = 1200;
+
 }

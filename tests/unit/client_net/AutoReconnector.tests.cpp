@@ -96,7 +96,7 @@ TEST_CASE("AutoReconnector: a close after login triggers retries until a matchin
                 R"(","payload":{"rows":8,"cols":8,"pieces":[],"gameOver":false,"nowMs":1,"role":"w","players":[]}})");
         }
     };
-    REQUIRE(connection.login("alice"));
+    REQUIRE(connection.login("alice", "secret"));
     AutoReconnector reconnector(connection);
 
     link.simulateClose();
@@ -117,7 +117,7 @@ TEST_CASE("AutoReconnector: repeated SESSION_EXPIRED replies keep retrying, not 
                          R"(","payload":{"code":"SESSION_EXPIRED","message":"no game to reconnect to"}})");
         }
     };
-    REQUIRE(connection.login("alice"));
+    REQUIRE(connection.login("alice", "secret"));
     AutoReconnector reconnector(connection);
 
     link.simulateClose();

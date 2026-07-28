@@ -146,3 +146,30 @@ TEST_CASE("PlayerSessionRegistry: disconnectedEntries lists only currently-disco
     CHECK(disconnected[0].first == tokenA);
     CHECK(disconnected[0].second.username == "alice");
 }
+
+TEST_CASE("PlayerSessionRegistry: usernamesFor returns both players of a session, connected or not") {
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    GameSession* session = reinterpret_cast<GameSession*>(0x1);
+    GameSession* otherSession = reinterpret_cast<GameSession*>(0x2);
+    sessions.registerNew("alice", 'w', session, "conn-1");
+    sessions.registerNew("bob", 'b', session, "conn-2");
+    sessions.registerNew("carol", 'w', otherSession, "conn-3");
+    sessions.markDisconnected("conn-2", 5000);  // still returned - disconnected is not "gone"
+
+    const auto players = sessions.usernamesFor(session);
+
+    REQUIRE(players.size() == 2);
+    CHECK(((players[0].first == "alice" && players[0].second == 'w') ||
+           (players[1].first == "alice" && players[1].second == 'w')));
+    CHECK(((players[0].first == "bob" && players[0].second == 'b') ||
+           (players[1].first == "bob" && players[1].second == 'b')));
+}
+
+TEST_CASE("PlayerSessionRegistry: usernamesFor on a session with no entries returns empty") {
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    GameSession* session = reinterpret_cast<GameSession*>(0x1);
+
+    CHECK(sessions.usernamesFor(session).empty());
+}

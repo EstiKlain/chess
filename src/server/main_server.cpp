@@ -16,6 +16,7 @@
 #include "server/application/AuthGuard.hpp"
 #include "server/application/ConnectionManager.hpp"
 #include "server/application/DisconnectUseCase.hpp"
+#include "server/application/EloUpdateUseCase.hpp"
 #include "server/application/GameSession.hpp"
 #include "server/application/LoginUseCase.hpp"
 #include "server/application/MakeMoveUseCase.hpp"
@@ -26,10 +27,14 @@
 #include "server/domain_ports/IClock.hpp"
 #include "server/domain_ports/IEventBus.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
+#include "server/domain_ports/IPasswordHasher.hpp"
 #include "server/domain_ports/ITokenGenerator.hpp"
 #include "server/domain_ports/ITransport.hpp"
+#include "server/domain_ports/IUserRepository.hpp"
 #include "server/infrastructure/bus/InProcessEventBus.hpp"
 #include "server/infrastructure/persistence/InMemoryIdentityStore.hpp"
+#include "server/infrastructure/persistence/InMemoryUserRepository.hpp"
+#include "server/infrastructure/security/SodiumPasswordHasher.hpp"
 #include "server/infrastructure/security/SodiumTokenGenerator.hpp"
 #include "server/infrastructure/time/SystemClock.hpp"
 #include "server/infrastructure/transport/LoggingTransport.hpp"
@@ -92,6 +97,16 @@ int main() {
     PlayerSessionRegistry sessions(tokenGenerator);
     SystemClock clock;
 
+    // Temporary IUserRepository stand-in - see
+    // docs/kungfu_chess_server_plan (1).md's Iteration 6 section for why
+    // this is InMemoryUserRepository and not PostgresUserRepository today,
+    // and CMakeLists.txt for the FetchContent block deferred to the Docker
+    // phase. Swap point when Docker lands: replace this one line (plus the
+    // CMakeLists.txt registration) - nothing downstream names this
+    // concrete type, only IUserRepository&.
+    InMemoryUserRepository users;
+    SodiumPasswordHasher passwordHasher;
+
     // AuthGuard sits between the real bus and MessageRouter: it enforces
     // "LOGIN before anything else" without MessageRouter itself ever
     // learning that authentication exists. MakeMoveUseCase/LoginUseCase and
@@ -101,11 +116,12 @@ int main() {
     AuthGuard authGuard(bus, identities, transport);
     MessageRouter router(authGuard, transport);
 
-    GameSession session(loadInitialEngine());
+    GameSession session(loadInitialEngine(), /*ratingEligible=*/true);
     MakeMoveUseCase makeMoveUseCase(bus, transport, connections, identities);
-    LoginUseCase loginUseCase(identities, transport, connections, sessions);
+    LoginUseCase loginUseCase(identities, transport, connections, sessions, users, passwordHasher);
     DisconnectUseCase disconnectUseCase(sessions, connections, transport, clock);
-    ReconnectUseCase reconnectUseCase(sessions, connections, identities, transport);
+    ReconnectUseCase reconnectUseCase(sessions, connections, identities, transport, users);
+    EloUpdateUseCase eloUpdateUseCase(users, sessions, connections);
 
     // Wiring #1: transport lifecycle -> connection registry. Rejection of a
     // 3rd connection happens HERE, at connect time, not on the first MOVE -
@@ -197,7 +213,7 @@ int main() {
     // overwrite it. Reversing this order would let a same-tick resign win
     // instead of the legitimate king-capture outcome - see
     // DisconnectUseCase.hpp's own ordering-guarantee comment.
-    std::thread([&session, &connections, &identities, &transport, &disconnectUseCase, &clock]() {
+    std::thread([&session, &connections, &identities, &transport, &disconnectUseCase, &eloUpdateUseCase, &clock]() {
         auto lastTick = std::chrono::steady_clock::now();
         while (true) {
             std::this_thread::sleep_for(std::chrono::milliseconds(server_config::kTickIntervalMs));
@@ -207,6 +223,11 @@ int main() {
             lastTick = now;
             session.wait(deltaMs);
             disconnectUseCase.tick(clock.nowMs());
+            // After disconnectUseCase.tick() so a same-tick disconnect-
+            // timeout resignation is visible too - see EloUpdateUseCase's
+            // own header comment for why this is a tick-loop call, not a
+            // bus subscriber.
+            eloUpdateUseCase.checkAndApply(session);
             StateFanOut::broadcast(session, connections, identities, transport, "", "");
         }
     }).detach();

@@ -16,6 +16,7 @@
 #include "server/application/ReconnectUseCase.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
 #include "server/domain_ports/ITransport.hpp"
+#include "server/domain_ports/IUserRepository.hpp"
 
 namespace {
 
@@ -59,6 +60,27 @@ private:
     int counter_ = 0;
 };
 
+// Local fake, matching this codebase's per-test-file fake convention (see
+// LoginUseCase.tests.cpp for the same shape).
+class FakeUserRepository : public IUserRepository {
+public:
+    std::optional<UserRecord> findByUsername(const std::string& username) override {
+        const auto it = users_.find(username);
+        if (it == users_.end()) return std::nullopt;
+        return it->second;
+    }
+    void createUser(const std::string& username, const std::string& passwordHash) override {
+        users_[username] = UserRecord{username, passwordHash, 1200};
+    }
+    void updateElo(const std::string& username, int newElo) override {
+        const auto it = users_.find(username);
+        if (it != users_.end()) it->second.elo = newElo;
+    }
+
+private:
+    std::unordered_map<std::string, UserRecord> users_;
+};
+
 Board makeBoard() {
     RawBoard raw;
     raw.push_back({"wR", ".", ".", "."});
@@ -83,9 +105,15 @@ TEST_CASE("ReconnectUseCase: a valid, still-disconnected token re-binds the conn
 
     FakeIdentityStore identities;
     FakeTransport transport;
-    ReconnectUseCase useCase(sessions, connections, identities, transport);
+    FakeUserRepository users;
+    users.createUser("alice", "irrelevant-hash");
+    users.updateElo("alice", 1350);
+    ReconnectUseCase useCase(sessions, connections, identities, transport, users);
 
     useCase.handleReconnect("white-conn-2", "r1", nlohmann::json{{"sessionToken", token}});
+
+    REQUIRE(connections.sessionFor("white-conn-2").has_value());
+    CHECK(connections.sessionFor("white-conn-2")->elo == 1350);
 
     CHECK(identities.isLoggedIn("white-conn-2"));
     REQUIRE(identities.usernameFor("white-conn-2").has_value());
@@ -129,7 +157,8 @@ TEST_CASE("ReconnectUseCase: an unknown token gets SESSION_EXPIRED") {
     ConnectionManager connections;
     FakeIdentityStore identities;
     FakeTransport transport;
-    ReconnectUseCase useCase(sessions, connections, identities, transport);
+    FakeUserRepository users;
+    ReconnectUseCase useCase(sessions, connections, identities, transport, users);
 
     useCase.handleReconnect("some-conn", "r1", nlohmann::json{{"sessionToken", "nonexistent"}});
 
@@ -150,7 +179,8 @@ TEST_CASE("ReconnectUseCase: a token that is no longer disconnected (already rec
 
     FakeIdentityStore identities;
     FakeTransport transport;
-    ReconnectUseCase useCase(sessions, connections, identities, transport);
+    FakeUserRepository users;
+    ReconnectUseCase useCase(sessions, connections, identities, transport, users);
 
     useCase.handleReconnect("white-conn-2", "r1", nlohmann::json{{"sessionToken", token}});
     transport.sent.clear();
@@ -168,7 +198,8 @@ TEST_CASE("ReconnectUseCase: a malformed payload (missing sessionToken) gets MAL
     ConnectionManager connections;
     FakeIdentityStore identities;
     FakeTransport transport;
-    ReconnectUseCase useCase(sessions, connections, identities, transport);
+    FakeUserRepository users;
+    ReconnectUseCase useCase(sessions, connections, identities, transport, users);
 
     useCase.handleReconnect("some-conn", "r1", nlohmann::json::object());
 

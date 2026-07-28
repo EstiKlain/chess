@@ -5,13 +5,14 @@
 
 #include "server/application/GameSession.hpp"
 #include "server/application/StateFanOut.hpp"
+#include "server/config.hpp"
 #include "server/protocol/Envelope.hpp"
 #include "server/protocol/dto/DisconnectDto.hpp"
 #include "server/protocol/dto/ReconnectDto.hpp"
 
 ReconnectUseCase::ReconnectUseCase(PlayerSessionRegistry& sessions, ConnectionManager& connections,
-                                    IIdentityStore& identities, ITransport& transport)
-    : sessions_(sessions), connections_(connections), identities_(identities), transport_(transport) {}
+                                    IIdentityStore& identities, ITransport& transport, IUserRepository& users)
+    : sessions_(sessions), connections_(connections), identities_(identities), transport_(transport), users_(users) {}
 
 void ReconnectUseCase::handleReconnect(const std::string& connectionId, const std::string& requestId,
                                        const nlohmann::json& payload) {
@@ -33,6 +34,9 @@ void ReconnectUseCase::handleReconnect(const std::string& connectionId, const st
 
     connections_.bindKnown(connectionId, entry->session, entry->color);
     identities_.login(connectionId, entry->username);
+
+    const auto record = users_.findByUsername(entry->username);
+    connections_.setElo(connectionId, record.has_value() ? record->elo : server_config::kInitialElo);
 
     StateFanOut::broadcast(*entry->session, connections_, identities_, transport_, connectionId, requestId);
 

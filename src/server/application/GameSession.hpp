@@ -15,7 +15,13 @@
 // network-level vs. game-rule concurrency.
 class GameSession {
 public:
-    explicit GameSession(GameEngine engine) : engine_(std::move(engine)) {}
+    /// @param engine The GameEngine this session wraps.
+    /// @param ratingEligible Whether a decisive ending of this game should update Elo (see EloUpdateUseCase). Defaults to true; Room-origin games (Iteration 8) will construct with false. A plain bool rather than a GameOrigin{Play,Room} enum on purpose - EloUpdateUseCase only ever needs "does this count," never "what kind of game is this," so future game types (tournament, practice, ...) only need to pass the right value here, with zero changes to EloUpdateUseCase itself.
+    explicit GameSession(GameEngine engine, bool ratingEligible = true)
+        : engine_(std::move(engine)), ratingEligible_(ratingEligible) {}
+
+    /// Whether a decisive ending of this game should trigger an Elo update.
+    bool ratingEligible() const { return ratingEligible_; }
 
     /// Forwards to GameEngine::requestMove under the session's lock.
     MoveResult requestMove(const MoveRequest& request);
@@ -35,4 +41,5 @@ public:
 private:
     mutable std::mutex mutex_;
     GameEngine engine_;
+    bool ratingEligible_;
 };

@@ -41,6 +41,7 @@ struct PlayerDto {
     std::string id;
     std::string color;
     std::string name;
+    int elo = 0;
 };
 
 struct StateUpdateDto {
@@ -57,7 +58,7 @@ struct StateUpdateDto {
 
 /// Serializes a PlayerDto to JSON.
 inline void to_json(nlohmann::json& j, const PlayerDto& d) {
-    j = nlohmann::json{{"id", d.id}, {"color", d.color}, {"name", d.name}};
+    j = nlohmann::json{{"id", d.id}, {"color", d.color}, {"name", d.name}, {"elo", d.elo}};
 }
 
 /// Parses a PlayerDto out of a STATE_UPDATE payload's "players" array. Needed client-side (ServerConnection) to read the roster back; the server itself only ever serializes this DTO, never parses it.
@@ -65,6 +66,7 @@ inline void from_json(const nlohmann::json& j, PlayerDto& d) {
     d.id = j.at("id").get<std::string>();
     d.color = j.at("color").get<std::string>();
     d.name = j.at("name").get<std::string>();
+    d.elo = j.at("elo").get<int>();
 }
 
 /// Serializes a MotionDto to JSON.

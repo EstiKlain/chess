@@ -48,8 +48,8 @@ public:
     /// Opens the connection to host:port and blocks until the handshake completes. Throws std::runtime_error on failure.
     void connect(const std::string& host, uint16_t port);
 
-    /// Sends LOGIN and blocks until LOGIN_OK or ERROR arrives. Returns true on LOGIN_OK; on false, lastError() holds the server's message.
-    bool login(const std::string& username);
+    /// Sends LOGIN and blocks until LOGIN_OK or ERROR arrives. Returns true on LOGIN_OK; on false, lastError() holds the server's message (e.g. INVALID_CREDENTIALS for a wrong password on an existing username - a brand-new username registers automatically with the given password).
+    bool login(const std::string& username, const std::string& password);
 
     /// The server's error message from the most recent failed login, if any.
     const std::string& lastError() const;

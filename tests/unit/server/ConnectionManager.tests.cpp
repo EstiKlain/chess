@@ -111,6 +111,30 @@ TEST_CASE("ConnectionManager: a color reserved by PlayerSessionRegistry is not h
     CHECK_FALSE(thirdPartyAttempt.accepted);
 }
 
+TEST_CASE("ConnectionManager: setElo updates the live Elo cache on an already-bound connection") {
+    ConnectionManager connections;
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    GameSession* session = reinterpret_cast<GameSession*>(0x1);
+    connections.onConnected("conn-1", session, sessions);
+
+    REQUIRE(connections.sessionFor("conn-1").has_value());
+    CHECK(connections.sessionFor("conn-1")->elo == server_config::kInitialElo);
+
+    connections.setElo("conn-1", 1350);
+
+    REQUIRE(connections.sessionFor("conn-1").has_value());
+    CHECK(connections.sessionFor("conn-1")->elo == 1350);
+}
+
+TEST_CASE("ConnectionManager: setElo on an unbound connectionId is a no-op") {
+    ConnectionManager connections;
+
+    connections.setElo("unknown-conn", 1350);  // must not throw or create a binding
+
+    CHECK_FALSE(connections.sessionFor("unknown-conn").has_value());
+}
+
 TEST_CASE("ConnectionManager: bindKnown binds a connectionId directly, bypassing color assignment") {
     ConnectionManager connections;
     GameSession* session = reinterpret_cast<GameSession*>(0x1);

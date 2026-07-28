@@ -14,6 +14,7 @@
 struct PlayerName {
     std::string color;
     std::string name;
+    int elo = 0;
 };
 
 namespace Hud {

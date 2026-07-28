@@ -54,6 +54,9 @@ public:
     /// True if any entry is currently disconnected (used by DisconnectUseCase::tick to know which tokens to check/prune).
     std::vector<std::pair<std::string, PlayerSessionEntry>> disconnectedEntries() const;
 
+    /// All (username, color) pairs currently registered for this session, connected or not - lets EloUpdateUseCase resolve both players' usernames after a game ends even if one of them is mid-disconnect-window.
+    std::vector<std::pair<std::string, char>> usernamesFor(const GameSession* session) const;
+
 private:
     ITokenGenerator& tokenGenerator_;
     std::unordered_map<std::string, PlayerSessionEntry> byToken_;

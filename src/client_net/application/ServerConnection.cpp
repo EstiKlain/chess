@@ -28,14 +28,14 @@ void ServerConnection::connect(const std::string& host, uint16_t port) {
     link_.connect(host, port);
 }
 
-bool ServerConnection::login(const std::string& username) {
+bool ServerConnection::login(const std::string& username, const std::string& password) {
     const std::string requestId = nextRequestId();
     {
         std::lock_guard<std::mutex> lock(loginMutex_);
         loginPending_ = true;
     }
 
-    send("LOGIN", requestId, nlohmann::json{{"username", username}});
+    send("LOGIN", requestId, nlohmann::json{{"username", username}, {"password", password}});
 
     std::unique_lock<std::mutex> lock(loginMutex_);
     loginCv_.wait(lock, [this] { return !loginPending_; });

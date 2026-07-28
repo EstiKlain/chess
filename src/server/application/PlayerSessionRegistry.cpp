@@ -57,3 +57,13 @@ std::vector<std::pair<std::string, PlayerSessionEntry>> PlayerSessionRegistry::d
     }
     return result;
 }
+
+std::vector<std::pair<std::string, char>> PlayerSessionRegistry::usernamesFor(const GameSession* session) const {
+    std::vector<std::pair<std::string, char>> result;
+    for (const auto& [token, entry] : byToken_) {
+        if (entry.session == session) {
+            result.emplace_back(entry.username, entry.color);
+        }
+    }
+    return result;
+}

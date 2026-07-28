@@ -57,18 +57,32 @@ FetchContent_MakeAvailable(json)
 find_package(Threads REQUIRED)
 
 # libsodium (Server-Iteration 5) - chosen for ITokenGenerator's real
-# implementation (SodiumTokenGenerator, randombytes_buf-backed) and,
-# deliberately, to be reused unchanged for Iteration 6's password hashing
-# (crypto_pwhash_str/crypto_pwhash_str_verify - Argon2id). Cross-platform on
-# purpose (over e.g. Windows CNG) - this project's confirmed eventual
-# deployment target is a Docker container, almost certainly Linux. Only
-# chess_server links this - chess_server_tests uses a FakeTokenGenerator
-# instead, exactly like it never links the real WebSocketTransport.cpp.
+# implementation (SodiumTokenGenerator, randombytes_buf-backed) and the same
+# library is reused, via a sibling class (SodiumPasswordHasher, Iteration 6),
+# for password hashing (crypto_pwhash_str/crypto_pwhash_str_verify -
+# Argon2id). Cross-platform on purpose (over e.g. Windows CNG) - this
+# project's confirmed eventual deployment target is a Docker container,
+# almost certainly Linux. Only chess_server links this - chess_server_tests
+# uses fakes instead, exactly like it never links the real
+# WebSocketTransport.cpp.
 FetchContent_Declare(libsodium
     GIT_REPOSITORY https://github.com/robinlinden/libsodium-cmake.git
     GIT_TAG master)
 set(SODIUM_DISABLE_TESTS ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(libsodium)
+
+# PostgreSQL (Server-Iteration 6) - deliberately NOT wired up here yet.
+# PostgresUserRepository.hpp/.cpp (src/server/infrastructure/persistence/)
+# exist as source but are not registered below: unlike every dependency
+# above, libpq is not realistically FetchContent-able standalone on
+# Windows/MSVC without vcpkg (which this project does not use), while
+# `apt-get install libpq-dev` + FetchContent(libpqxx) is trivial on the
+# Linux/Docker target this project is about to move to. InMemoryUserRepository
+# is the real IUserRepository implementation running today - see
+# docs/kungfu_chess_server_plan (1).md's Iteration 6 section for the full
+# reasoning and the swap-in steps (find_package(PostgreSQL), FetchContent
+# for libpqxx, and registering PostgresUserRepository.cpp into chess_server
+# below) for when the Docker phase starts.
 
 # --- chess_server: the new server executable (Server-Iteration 1) ---------
 # Iteration 1: proves a message travels client -> server -> client, with
@@ -82,7 +96,9 @@ add_executable(chess_server
     src/server/infrastructure/transport/WebSocketTransport.cpp
     src/server/infrastructure/transport/LoggingTransport.cpp
     src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
+    src/server/infrastructure/persistence/InMemoryUserRepository.cpp
     src/shared/logging/FileLogger.cpp
+    src/shared/protocol/LogRedaction.cpp
     src/server/application/ConnectionManager.cpp
     src/server/application/GameSession.cpp
     src/server/application/MakeMoveUseCase.cpp
@@ -92,8 +108,11 @@ add_executable(chess_server
     src/server/application/PlayerSessionRegistry.cpp
     src/server/application/DisconnectUseCase.cpp
     src/server/application/ReconnectUseCase.cpp
+    src/server/application/EloService.cpp
+    src/server/application/EloUpdateUseCase.cpp
     src/server/infrastructure/time/SystemClock.cpp
     src/server/infrastructure/security/SodiumTokenGenerator.cpp
+    src/server/infrastructure/security/SodiumPasswordHasher.cpp
     src/core/model/Board.cpp
     src/core/rules/Movement.cpp
     src/core/rules/RuleEngine.cpp
@@ -160,6 +179,7 @@ add_executable(chess_gui
     src/client_net/infrastructure/WebSocketClientLink.cpp
     src/client_net/infrastructure/ClientLogger.cpp
     src/shared/logging/FileLogger.cpp
+    src/shared/protocol/LogRedaction.cpp
     src/view/canvas/img.cpp
     src/view/canvas/ImgCanvas.cpp
     src/view/canvas/WindowMapper.cpp
@@ -279,11 +299,16 @@ add_executable(chess_tests
         tests/unit/server/PlayerSessionRegistry.tests.cpp
         tests/unit/server/DisconnectReconnect.tests.cpp
         tests/unit/server/ReconnectUseCase.tests.cpp
+        tests/unit/server/EloService.tests.cpp
+        tests/unit/server/EloUpdateUseCase.tests.cpp
+        tests/unit/server/LogRedaction.tests.cpp
         src/server/protocol/MessageRouter.cpp
         src/shared/protocol/mappers/MoveRequestMapper.cpp
         src/shared/protocol/mappers/GameSnapshotMapper.cpp
+        src/shared/protocol/LogRedaction.cpp
         src/server/infrastructure/bus/InProcessEventBus.cpp
         src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
+        src/server/infrastructure/persistence/InMemoryUserRepository.cpp
         src/server/infrastructure/transport/LoggingTransport.cpp
         src/shared/logging/FileLogger.cpp
         src/server/application/ConnectionManager.cpp
@@ -295,6 +320,8 @@ add_executable(chess_tests
         src/server/application/PlayerSessionRegistry.cpp
         src/server/application/DisconnectUseCase.cpp
         src/server/application/ReconnectUseCase.cpp
+        src/server/application/EloService.cpp
+        src/server/application/EloUpdateUseCase.cpp
         src/server/infrastructure/time/SystemClock.cpp
         src/core/model/Board.cpp
         src/core/rules/Movement.cpp
@@ -338,6 +365,7 @@ add_executable(chess_tests
         src/client_net/infrastructure/ClientLogger.cpp
         src/shared/protocol/mappers/GameSnapshotMapper.cpp
         src/shared/protocol/mappers/MoveRequestMapper.cpp
+        src/shared/protocol/LogRedaction.cpp
     )
     target_include_directories(chess_client_tests PRIVATE src src/core third_party)
     target_link_libraries(chess_client_tests PRIVATE

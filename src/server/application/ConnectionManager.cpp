@@ -44,6 +44,13 @@ std::optional<ConnectionBinding> ConnectionManager::sessionFor(const std::string
     return it->second;
 }
 
+void ConnectionManager::setElo(const std::string& connectionId, int elo) {
+    const auto it = connections_.find(connectionId);
+    if (it != connections_.end()) {
+        it->second.elo = elo;
+    }
+}
+
 std::vector<std::pair<std::string, ConnectionBinding>> ConnectionManager::connectionsFor(
     const GameSession* session) const {
     std::vector<std::pair<std::string, ConnectionBinding>> result;

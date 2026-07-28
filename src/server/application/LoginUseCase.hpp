@@ -7,7 +7,9 @@
 #include "server/application/ConnectionManager.hpp"
 #include "server/application/PlayerSessionRegistry.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
+#include "server/domain_ports/IPasswordHasher.hpp"
 #include "server/domain_ports/ITransport.hpp"
+#include "server/domain_ports/IUserRepository.hpp"
 
 // Real LOGIN handling, kept out of main_server.cpp so the composition root
 // stays wiring-only. Depends only on domain_ports/ + protocol/ + application/
@@ -25,9 +27,9 @@
 class LoginUseCase {
 public:
     LoginUseCase(IIdentityStore& identities, ITransport& transport, ConnectionManager& connections,
-                 PlayerSessionRegistry& sessions);
+                 PlayerSessionRegistry& sessions, IUserRepository& users, IPasswordHasher& hasher);
 
-    /// Handles a LOGIN event: rejects a connection with no session binding (e.g. a 3rd/rejected connection - see ConnectionManager::onConnected) with TABLE_FULL, rejects a missing/empty username with MALFORMED_PAYLOAD, otherwise records the association, registers a fresh sessionToken (Server-Iteration 5, for later RECONNECT), and replies LOGIN_OK with { sessionToken }.
+    /// Handles a LOGIN event: rejects a connection with no session binding (e.g. a 3rd/rejected connection - see ConnectionManager::onConnected) with TABLE_FULL, rejects a missing/empty username or password with MALFORMED_PAYLOAD. Registers a brand-new username automatically (with the given password, hashed); for an existing username, rejects a wrong password with INVALID_CREDENTIALS without logging in. On success, records the identity association, caches the account's current Elo on the connection (ConnectionManager::setElo), registers a fresh sessionToken (Server-Iteration 5, for later RECONNECT), and replies LOGIN_OK with { sessionToken }.
     void handleLogin(const std::string& connectionId, const std::string& requestId, const nlohmann::json& payload);
 
 private:
@@ -35,4 +37,6 @@ private:
     ITransport& transport_;
     ConnectionManager& connections_;
     PlayerSessionRegistry& sessions_;
+    IUserRepository& users_;
+    IPasswordHasher& hasher_;
 };
