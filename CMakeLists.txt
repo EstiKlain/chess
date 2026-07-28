@@ -127,6 +127,7 @@ add_executable(chess_game
     src/core/io/BoardParser.cpp
     src/core/io/BoardPrinter.cpp
     src/core/engine/GameEngine.cpp
+    src/core/engine/SnapshotSync.cpp
     src/core/rules/PieceRules.cpp
     src/core/texttests/ScriptRunner.cpp
     src/view/canvas/img.cpp
@@ -175,6 +176,7 @@ add_executable(chess_gui
     src/core/input/BoardMapper.cpp
     src/core/input/Controller.cpp
     src/core/model/Board.cpp
+    src/core/engine/SnapshotSync.cpp
     src/view/input/ClickLogger.cpp
     src/shared/protocol/mappers/GameSnapshotMapper.cpp
     src/shared/protocol/mappers/MoveRequestMapper.cpp
@@ -233,6 +235,7 @@ add_executable(chess_tests
         src/core/io/BoardParser.cpp
         src/core/io/BoardPrinter.cpp
         src/core/engine/GameEngine.cpp
+        src/core/engine/SnapshotSync.cpp
         src/core/rules/PieceRules.cpp
         src/core/texttests/ScriptRunner.cpp
         src/view/canvas/img.cpp

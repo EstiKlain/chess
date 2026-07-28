@@ -57,7 +57,6 @@ public:
     // call (Stage/Iteration D) - see GameSnapshot.hpp for why.
     GameSnapshot snapshot() const;
 
-    Board &board() { return board_; }
     const Board &board() const { return board_; }
     bool gameOver() const { return gameOver_; }
 

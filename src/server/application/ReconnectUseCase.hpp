@@ -22,7 +22,7 @@ public:
     ReconnectUseCase(PlayerSessionRegistry& sessions, ConnectionManager& connections, IIdentityStore& identities,
                       ITransport& transport);
 
-    /// Handles a RECONNECT event: SESSION_EXPIRED for an unknown token or one that is no longer in a disconnected state (window already elapsed and resigned, or a second reconnect racing an already-succeeded first one - same client-facing meaning, no distinction needed). Otherwise re-binds the connection to the same session/color, re-establishes login, and sends a fresh STATE_UPDATE to this connection only (not a full broadcast - the opponent's view is already current).
+    /// Handles a RECONNECT event: SESSION_EXPIRED for an unknown token or one that is no longer in a disconnected state (window already elapsed and resigned, or a second reconnect racing an already-succeeded first one - same client-facing meaning, no distinction needed). Otherwise re-binds the connection to the same session/color, re-establishes login, and fans out a fresh STATE_UPDATE to everyone in the session via StateFanOut (the reconnecting connection gets requestId echoed back, same rule as any other StateFanOut call).
     void handleReconnect(const std::string& connectionId, const std::string& requestId, const nlohmann::json& payload);
 
 private:

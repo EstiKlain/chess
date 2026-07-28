@@ -3,7 +3,7 @@
 #include <chrono>
 #include <utility>
 
-#include "server/protocol/Envelope.hpp"
+#include "shared/protocol/Envelope.hpp"
 #include "shared/protocol/dto/JumpDto.hpp"
 #include "shared/protocol/dto/MessageEnvelope.hpp"
 #include "shared/protocol/dto/MoveDto.hpp"

@@ -96,26 +96,31 @@ TEST_CASE("ReconnectUseCase: a valid, still-disconnected token re-binds the conn
     CHECK(binding->session == &session);
     CHECK(binding->color == 'w');
 
-    // Two messages: the reconnecting player's own STATE_UPDATE, plus the
-    // opponent's "countdown is over" cancel message - located by
-    // connectionId, not fixed index, since the two are independent sends.
-    REQUIRE(transport.sent.size() == 2);
-    auto findSentTo = [&](const std::string& connectionId) -> const std::string& {
+    // Three messages: StateFanOut::broadcast sends a STATE_UPDATE to every
+    // connection bound to the session (the reconnecting player and the
+    // opponent), plus ReconnectUseCase's own opponent-only "countdown is
+    // over" cancel message - located by connectionId + content, not fixed
+    // index, since black-conn now receives two independent sends.
+    REQUIRE(transport.sent.size() == 3);
+    auto findSentToContaining = [&](const std::string& connectionId, const std::string& needle) -> const std::string& {
         for (const auto& [id, rawJson] : transport.sent) {
-            if (id == connectionId) return rawJson;
+            if (id == connectionId && rawJson.find(needle) != std::string::npos) return rawJson;
         }
-        FAIL("no message found for connectionId " << connectionId);
+        FAIL("no message found for connectionId " << connectionId << " containing " << needle);
         static const std::string empty;
         return empty;
     };
 
-    const std::string& reconnectedPayload = findSentTo("white-conn-2");
-    CHECK(reconnectedPayload.find("STATE_UPDATE") != std::string::npos);
+    const std::string& reconnectedPayload = findSentToContaining("white-conn-2", "STATE_UPDATE");
+    CHECK(reconnectedPayload.find("\"requestId\":\"r1\"") != std::string::npos);
     CHECK(reconnectedPayload.find("\"role\":\"w\"") != std::string::npos);
 
-    const std::string& opponentPayload = findSentTo("black-conn");
-    CHECK(opponentPayload.find("DISCONNECT_COUNTDOWN") != std::string::npos);
-    CHECK(opponentPayload.find("\"secondsLeft\":0") != std::string::npos);
+    const std::string& opponentStateUpdate = findSentToContaining("black-conn", "STATE_UPDATE");
+    CHECK(opponentStateUpdate.find("\"requestId\":\"\"") != std::string::npos);
+    CHECK(opponentStateUpdate.find("\"role\":\"b\"") != std::string::npos);
+
+    const std::string& opponentCountdown = findSentToContaining("black-conn", "DISCONNECT_COUNTDOWN");
+    CHECK(opponentCountdown.find("\"secondsLeft\":0") != std::string::npos);
 }
 
 TEST_CASE("ReconnectUseCase: an unknown token gets SESSION_EXPIRED") {

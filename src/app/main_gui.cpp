@@ -15,6 +15,7 @@
 #include "client_net/infrastructure/WebSocketClientLink.hpp"
 #include "config.hpp"
 #include "engine/GameSnapshot.hpp"
+#include "engine/SnapshotSync.hpp"
 #include "input/Controller.hpp"
 #include "model/Board.hpp"
 #include "shared/logging/FileLogger.hpp"
@@ -36,29 +37,6 @@
 
 namespace
 {
-    // Rebuilds board's contents to match snapshot. Board has no "clear"
-    // method, so every existing piece is removed first, then re-added from
-    // the snapshot. New piece ids won't match the server's - irrelevant,
-    // since Controller only ever calls pieceAt(Position), never pieceById.
-    // width/height are set on every call, not just once, so the mirror
-    // never hardcodes a board size anywhere - it always reflects whatever
-    // the server actually says, today and in any future variant.
-    void syncBoardFromSnapshot(Board &board, const GameSnapshot &snapshot)
-    {
-        board.width = snapshot.cols;
-        board.height = snapshot.rows;
-
-        const std::vector<Piece> existing = board.pieces();
-        for (const Piece &piece : existing)
-        {
-            board.removePiece(piece.id);
-        }
-        for (const PieceSnapshot &piece : snapshot.pieces)
-        {
-            board.addPiece(piece.color, piece.kind, Position{piece.row, piece.col});
-        }
-    }
-
     // view/ takes its own minimal PlayerName type, not server::protocol's
     // PlayerDto - main_gui.cpp (which already depends on protocol/ for the
     // snapshot mapping) does this one-line conversion so view/ stays
