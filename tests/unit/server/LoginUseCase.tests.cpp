@@ -8,6 +8,7 @@
 
 #include "server/application/ConnectionManager.hpp"
 #include "server/application/LoginUseCase.hpp"
+#include "server/application/PlayerSessionRegistry.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
 #include "server/domain_ports/ITransport.hpp"
 
@@ -47,14 +48,24 @@ public:
     std::vector<std::pair<std::string, std::string>> sent;
 };
 
+class FakeTokenGenerator : public ITokenGenerator {
+public:
+    std::string generate() override { return "token-" + std::to_string(++counter_); }
+
+private:
+    int counter_ = 0;
+};
+
 }  // namespace
 
 TEST_CASE("LoginUseCase: a non-empty username is accepted and LOGIN_OK is sent to the sender") {
     FakeIdentityStore identities;
     FakeTransport transport;
     ConnectionManager connections;
-    connections.onConnected("conn-1", nullptr);
-    LoginUseCase useCase(identities, transport, connections);
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    connections.onConnected("conn-1", nullptr, sessions);
+    LoginUseCase useCase(identities, transport, connections, sessions);
 
     useCase.handleLogin("conn-1", "r1", nlohmann::json{{"username", "alice"}});
 
@@ -68,12 +79,29 @@ TEST_CASE("LoginUseCase: a non-empty username is accepted and LOGIN_OK is sent t
     CHECK(transport.sent[0].second.find("\"requestId\":\"r1\"") != std::string::npos);
 }
 
+TEST_CASE("LoginUseCase: LOGIN_OK carries a sessionToken usable for a later RECONNECT") {
+    FakeIdentityStore identities;
+    FakeTransport transport;
+    ConnectionManager connections;
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    connections.onConnected("conn-1", nullptr, sessions);
+    LoginUseCase useCase(identities, transport, connections, sessions);
+
+    useCase.handleLogin("conn-1", "r1", nlohmann::json{{"username", "alice"}});
+
+    REQUIRE(transport.sent.size() == 1);
+    CHECK(transport.sent[0].second.find("\"sessionToken\"") != std::string::npos);
+}
+
 TEST_CASE("LoginUseCase: an empty username is rejected with MALFORMED_PAYLOAD and no login is recorded") {
     FakeIdentityStore identities;
     FakeTransport transport;
     ConnectionManager connections;
-    connections.onConnected("conn-1", nullptr);
-    LoginUseCase useCase(identities, transport, connections);
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    connections.onConnected("conn-1", nullptr, sessions);
+    LoginUseCase useCase(identities, transport, connections, sessions);
 
     useCase.handleLogin("conn-1", "r2", nlohmann::json{{"username", ""}});
 
@@ -86,8 +114,10 @@ TEST_CASE("LoginUseCase: a payload missing the username field is rejected with M
     FakeIdentityStore identities;
     FakeTransport transport;
     ConnectionManager connections;
-    connections.onConnected("conn-1", nullptr);
-    LoginUseCase useCase(identities, transport, connections);
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    connections.onConnected("conn-1", nullptr, sessions);
+    LoginUseCase useCase(identities, transport, connections, sessions);
 
     useCase.handleLogin("conn-1", "r3", nlohmann::json::object());
 
@@ -100,8 +130,10 @@ TEST_CASE("LoginUseCase: logging in again on the same connection replaces the pr
     FakeIdentityStore identities;
     FakeTransport transport;
     ConnectionManager connections;
-    connections.onConnected("conn-1", nullptr);
-    LoginUseCase useCase(identities, transport, connections);
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    connections.onConnected("conn-1", nullptr, sessions);
+    LoginUseCase useCase(identities, transport, connections, sessions);
 
     useCase.handleLogin("conn-1", "r4", nlohmann::json{{"username", "alice"}});
     useCase.handleLogin("conn-1", "r5", nlohmann::json{{"username", "bob"}});
@@ -114,7 +146,9 @@ TEST_CASE("LoginUseCase: a connection with no session binding is rejected with T
     FakeIdentityStore identities;
     FakeTransport transport;
     ConnectionManager connections;  // "conn-1" deliberately never bound - e.g. a 3rd/rejected connection.
-    LoginUseCase useCase(identities, transport, connections);
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    LoginUseCase useCase(identities, transport, connections, sessions);
 
     useCase.handleLogin("conn-1", "r6", nlohmann::json{{"username", "alice"}});
 

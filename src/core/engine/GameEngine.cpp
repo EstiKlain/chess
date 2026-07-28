@@ -94,8 +94,23 @@ void GameEngine::wait(long ms)
 
     elapsedMs_ += ms;
     std::vector<Piece> captured = arbiter_.resolveMoves(board_, elapsedMs_, rules_);
-    if (isGameOver(captured))
+    if (const auto winner = winnerFromCaptured(captured))
+    {
         gameOver_ = true;
+        winner_ = winner;
+        gameOverReason_ = GameOverReason::KingCaptured;
+    }
+}
+
+bool GameEngine::resign(char color)
+{
+    if (gameOver_)
+        return false;
+
+    gameOver_ = true;
+    winner_ = (color == 'w') ? 'b' : 'w';
+    gameOverReason_ = GameOverReason::Resignation;
+    return true;
 }
 
 GameSnapshot GameEngine::snapshot() const
@@ -104,6 +119,8 @@ GameSnapshot GameEngine::snapshot() const
     s.rows = board_.rows();
     s.cols = board_.cols();
     s.gameOver = gameOver_;
+    s.winner = winner_;
+    s.gameOverReason = gameOverReason_;
     s.nowMs = elapsedMs_;
 
     s.pieces.reserve(board_.pieces().size());

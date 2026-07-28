@@ -5,12 +5,12 @@
 LoggingTransport::LoggingTransport(ITransport& real, ILogger& logger) : real_(real), logger_(logger) {}
 
 void LoggingTransport::send(const std::string& connectionId, const std::string& rawJson) {
-    logger_.log("SENT", connectionId, rawJson);
+    logger_.log(LogDirection::Sent, connectionId, rawJson);
     real_.send(connectionId, rawJson);
 }
 
 void LoggingTransport::broadcast(const std::string& rawJson) {
-    logger_.log("SENT", "", rawJson);
+    logger_.log(LogDirection::Sent, "", rawJson);
     real_.broadcast(rawJson);
 }
 
@@ -24,7 +24,7 @@ void LoggingTransport::setOnClose(OnCloseHandler handler) {
 
 void LoggingTransport::setOnMessage(OnMessageHandler handler) {
     real_.setOnMessage([this, handler = std::move(handler)](const std::string& connectionId, const std::string& rawJson) {
-        logger_.log("RECEIVED", connectionId, rawJson);
+        logger_.log(LogDirection::Received, connectionId, rawJson);
         handler(connectionId, rawJson);
     });
 }

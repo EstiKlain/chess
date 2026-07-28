@@ -24,6 +24,11 @@ public:
     /// Registered once, before connect(). Called for every message from the server, on whatever thread the link delivers messages on.
     virtual void setOnMessage(OnMessageHandler handler) = 0;
 
+    using OnCloseHandler = std::function<void()>;
+
+    /// Registered once, before connect(). Called when the connection dies for any reason after having been open - never fires as a result of an intentional stop() (see WebSocketClientLink's own doc comment for how that distinction is kept).
+    virtual void setOnClose(OnCloseHandler handler) = 0;
+
     /// Stops the connection and any background thread.
     virtual void stop() = 0;
 };

@@ -1,4 +1,4 @@
-#include "server/infrastructure/logging/FileLogger.hpp"
+#include "shared/logging/FileLogger.hpp"
 
 #include <chrono>
 #include <ctime>
@@ -10,6 +10,15 @@ namespace {
 
 constexpr int kMillisecondsPerSecond = 1000;
 constexpr int kMillisecondFieldWidth = 3;
+
+std::string directionLabel(LogDirection direction) {
+    switch (direction) {
+        case LogDirection::Sent: return "SENT";
+        case LogDirection::Received: return "RECEIVED";
+        case LogDirection::Closed: return "CLOSED";
+    }
+    return "UNKNOWN";
+}
 
 std::string realNowIso8601() {
     using namespace std::chrono;
@@ -36,7 +45,7 @@ std::string realNowIso8601() {
 FileLogger::FileLogger(std::ostream& out, TimestampProvider nowProvider)
     : out_(out), nowProvider_(nowProvider ? std::move(nowProvider) : &realNowIso8601) {}
 
-void FileLogger::log(const std::string& direction, const std::string& connectionId, const std::string& rawJson) {
-    out_ << '[' << nowProvider_() << "] " << direction << ' ' << connectionId << ' ' << rawJson << '\n';
+void FileLogger::log(LogDirection direction, const std::string& connectionId, const std::string& rawJson) {
+    out_ << '[' << nowProvider_() << "] " << directionLabel(direction) << ' ' << connectionId << ' ' << rawJson << '\n';
     out_.flush();
 }

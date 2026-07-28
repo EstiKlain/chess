@@ -8,8 +8,11 @@ namespace {
 
 // PING is exempt alongside LOGIN so a client can health-check the
 // connection before/without logging in - it is a harmless no-op keepalive
-// with no domain effect either way.
-const std::unordered_set<std::string> kAuthExempt = {"LOGIN", "PING"};
+// with no domain effect either way. RECONNECT is exempt too (Server-
+// Iteration 5): a reconnecting client's new connectionId was never logged
+// in, so without this exemption RECONNECT itself would be rejected before
+// ReconnectUseCase ever runs its own identities.login(...) call.
+const std::unordered_set<std::string> kAuthExempt = {"LOGIN", "PING", "RECONNECT"};
 
 }  // namespace
 

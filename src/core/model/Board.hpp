@@ -52,8 +52,11 @@ public:
     const Piece *pieceById(int id) const;
     Piece *pieceById(int id);
 
-    // Assumes the destination has already been validated by RuleEngine;
-    // Board does not re-check legality here.
+    // Assumes the destination is chess-legal per RuleEngine - Board does not
+    // know piece movement rules and never re-checks legality here. It does
+    // assert its own structural invariants (bounds, no landing on an
+    // occupied cell) in debug builds, the same invariants addPiece() already
+    // enforces - not new game-rule knowledge, just applied consistently.
     void movePiece(int id, Position to);
 
     const std::vector<Piece> &pieces() const { return pieces_; }

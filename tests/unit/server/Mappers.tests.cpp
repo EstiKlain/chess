@@ -5,11 +5,11 @@
 #include "engine/GameSnapshot.hpp"
 #include "engine/MoveRequest.hpp"
 #include "model/Position.hpp"
-#include "server/protocol/dto/JumpDto.hpp"
-#include "server/protocol/dto/MoveDto.hpp"
-#include "server/protocol/dto/StateUpdateDto.hpp"
-#include "server/protocol/mappers/GameSnapshotMapper.hpp"
-#include "server/protocol/mappers/MoveRequestMapper.hpp"
+#include "shared/protocol/dto/JumpDto.hpp"
+#include "shared/protocol/dto/MoveDto.hpp"
+#include "shared/protocol/dto/StateUpdateDto.hpp"
+#include "shared/protocol/mappers/GameSnapshotMapper.hpp"
+#include "shared/protocol/mappers/MoveRequestMapper.hpp"
 
 TEST_CASE("MoveRequestMapper: domain -> DTO -> JSON -> DTO -> domain round-trips exactly") {
     const MoveRequest original{Position{1, 2}, Position{3, 4}};
@@ -137,4 +137,42 @@ TEST_CASE("GameSnapshotMapper: fromDto is the exact inverse of toJson for a full
     CHECK(roundTripped.pieces[1].motion->fromRow == 1);
     CHECK(roundTripped.pieces[1].motion->toRow == 3);
     CHECK(roundTripped.pieces[1].motion->durationMs == 1000);
+}
+
+TEST_CASE("GameSnapshotMapper: winner/reason round-trip through JSON when the game is over") {
+    GameSnapshot original;
+    original.rows = 8;
+    original.cols = 8;
+    original.gameOver = true;
+    original.winner = 'b';
+    original.gameOverReason = GameOverReason::Resignation;
+
+    const nlohmann::json json = GameSnapshotMapper::toJson(original, 'w', {});
+    CHECK(json.at("winner") == "b");
+    CHECK(json.at("reason") == "resignation");
+
+    const StateUpdateDto dto = json.get<StateUpdateDto>();
+    const GameSnapshot roundTripped = GameSnapshotMapper::fromDto(dto);
+
+    REQUIRE(roundTripped.winner.has_value());
+    CHECK(*roundTripped.winner == 'b');
+    REQUIRE(roundTripped.gameOverReason.has_value());
+    CHECK(*roundTripped.gameOverReason == GameOverReason::Resignation);
+}
+
+TEST_CASE("GameSnapshotMapper: winner/reason keys are absent from JSON when the game is not over") {
+    GameSnapshot original;
+    original.rows = 8;
+    original.cols = 8;
+    original.gameOver = false;
+
+    const nlohmann::json json = GameSnapshotMapper::toJson(original, 'w', {});
+    CHECK_FALSE(json.contains("winner"));
+    CHECK_FALSE(json.contains("reason"));
+
+    const StateUpdateDto dto = json.get<StateUpdateDto>();
+    const GameSnapshot roundTripped = GameSnapshotMapper::fromDto(dto);
+
+    CHECK_FALSE(roundTripped.winner.has_value());
+    CHECK_FALSE(roundTripped.gameOverReason.has_value());
 }

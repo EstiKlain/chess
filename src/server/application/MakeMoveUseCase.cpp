@@ -5,9 +5,9 @@
 #include "server/application/GameSession.hpp"
 #include "server/application/StateFanOut.hpp"
 #include "server/protocol/Envelope.hpp"
-#include "server/protocol/dto/JumpDto.hpp"
-#include "server/protocol/dto/MoveDto.hpp"
-#include "server/protocol/mappers/MoveRequestMapper.hpp"
+#include "shared/protocol/dto/JumpDto.hpp"
+#include "shared/protocol/dto/MoveDto.hpp"
+#include "shared/protocol/mappers/MoveRequestMapper.hpp"
 
 MakeMoveUseCase::MakeMoveUseCase(IEventBus &bus, ITransport &transport, ConnectionManager &connections,
                                  IIdentityStore &identities)

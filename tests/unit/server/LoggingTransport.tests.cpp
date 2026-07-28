@@ -33,8 +33,8 @@ public:
 
 class FakeLogger : public ILogger {
 public:
-    void log(const std::string& direction, const std::string& connectionId, const std::string& rawJson) override {
-        calls.emplace_back(direction, connectionId, rawJson);
+    void log(LogDirection direction, const std::string& connectionId, const std::string& rawJson) override {
+        calls.emplace_back(direction == LogDirection::Sent ? "SENT" : "RECEIVED", connectionId, rawJson);
     }
 
     std::vector<std::tuple<std::string, std::string, std::string>> calls;

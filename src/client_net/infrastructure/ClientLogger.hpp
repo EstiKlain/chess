@@ -4,7 +4,7 @@
 #include <string>
 
 #include "client_net/domain_ports/IServerLink.hpp"
-#include "server/domain_ports/ILogger.hpp"
+#include "shared/logging/ILogger.hpp"
 
 // Decorator: implements IServerLink itself, wrapping the real link
 // (concretely WebSocketClientLink, but never named here - only
@@ -28,6 +28,9 @@ public:
 
     /// Registers a wrapping handler with the real link that logs RECEIVED, then invokes the given handler unchanged.
     void setOnMessage(OnMessageHandler handler) override;
+
+    /// Registers a wrapping handler with the real link that logs CLOSED, then invokes the given handler unchanged.
+    void setOnClose(OnCloseHandler handler) override;
 
     /// Pure passthrough to the real link's stop().
     void stop() override;

@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-#include "server/domain_ports/ILogger.hpp"
+#include "shared/logging/ILogger.hpp"
 #include "server/domain_ports/ITransport.hpp"
 
 // Decorator: implements ITransport itself, wrapping the real transport

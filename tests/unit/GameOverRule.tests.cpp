@@ -15,17 +15,26 @@ namespace {
     }
 }
 
-TEST_CASE("isGameOver returns false for empty captured list")
+TEST_CASE("winnerFromCaptured returns nullopt for empty captured list")
 {
-    CHECK_FALSE(isGameOver({}));
+    CHECK_FALSE(winnerFromCaptured({}).has_value());
 }
 
-TEST_CASE("isGameOver returns false for non-king captures")
+TEST_CASE("winnerFromCaptured returns nullopt for non-king captures")
 {
-    CHECK_FALSE(isGameOver({makePiece('w', 'P'), makePiece('b', 'R')}));
+    CHECK_FALSE(winnerFromCaptured({makePiece('w', 'P'), makePiece('b', 'R')}).has_value());
 }
 
-TEST_CASE("isGameOver returns true when a king is captured")
+TEST_CASE("winnerFromCaptured returns 'b' when the white king is captured")
 {
-    CHECK(isGameOver({makePiece('w', 'P'), makePiece('b', 'K')}));
+    const auto winner = winnerFromCaptured({makePiece('w', 'P'), makePiece('w', 'K')});
+    REQUIRE(winner.has_value());
+    CHECK(*winner == 'b');
+}
+
+TEST_CASE("winnerFromCaptured returns 'w' when the black king is captured")
+{
+    const auto winner = winnerFromCaptured({makePiece('b', 'K')});
+    REQUIRE(winner.has_value());
+    CHECK(*winner == 'w');
 }

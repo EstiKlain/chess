@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "server/protocol/Envelope.hpp"
-#include "server/protocol/mappers/GameSnapshotMapper.hpp"
+#include "shared/protocol/mappers/GameSnapshotMapper.hpp"
 
 namespace StateFanOut {
 

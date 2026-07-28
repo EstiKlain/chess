@@ -1,11 +1,11 @@
 #include "rules/GameOverRule.hpp"
 
-bool isGameOver(const std::vector<Piece> &capturedPieces)
+std::optional<char> winnerFromCaptured(const std::vector<Piece> &capturedPieces)
 {
     for (const auto &piece : capturedPieces)
     {
         if (piece.kind == 'K')
-            return true;
+            return piece.color == 'w' ? 'b' : 'w';
     }
-    return false;
+    return std::nullopt;
 }

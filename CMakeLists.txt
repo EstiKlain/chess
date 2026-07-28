@@ -56,25 +56,44 @@ FetchContent_MakeAvailable(json)
 # Threads - websocketpp/asio need it on Linux/gcc (harmless no-op on MSVC).
 find_package(Threads REQUIRED)
 
+# libsodium (Server-Iteration 5) - chosen for ITokenGenerator's real
+# implementation (SodiumTokenGenerator, randombytes_buf-backed) and,
+# deliberately, to be reused unchanged for Iteration 6's password hashing
+# (crypto_pwhash_str/crypto_pwhash_str_verify - Argon2id). Cross-platform on
+# purpose (over e.g. Windows CNG) - this project's confirmed eventual
+# deployment target is a Docker container, almost certainly Linux. Only
+# chess_server links this - chess_server_tests uses a FakeTokenGenerator
+# instead, exactly like it never links the real WebSocketTransport.cpp.
+FetchContent_Declare(libsodium
+    GIT_REPOSITORY https://github.com/robinlinden/libsodium-cmake.git
+    GIT_TAG master)
+set(SODIUM_DISABLE_TESTS ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(libsodium)
+
 # --- chess_server: the new server executable (Server-Iteration 1) ---------
 # Iteration 1: proves a message travels client -> server -> client, with
 # no game logic yet (that starts in Iteration 2). See kungfu_chess_server_plan.md.
 add_executable(chess_server
     src/server/main_server.cpp
     src/server/protocol/MessageRouter.cpp
-    src/server/protocol/mappers/MoveRequestMapper.cpp
-    src/server/protocol/mappers/GameSnapshotMapper.cpp
+    src/shared/protocol/mappers/MoveRequestMapper.cpp
+    src/shared/protocol/mappers/GameSnapshotMapper.cpp
     src/server/infrastructure/bus/InProcessEventBus.cpp
     src/server/infrastructure/transport/WebSocketTransport.cpp
     src/server/infrastructure/transport/LoggingTransport.cpp
     src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
-    src/server/infrastructure/logging/FileLogger.cpp
+    src/shared/logging/FileLogger.cpp
     src/server/application/ConnectionManager.cpp
     src/server/application/GameSession.cpp
     src/server/application/MakeMoveUseCase.cpp
     src/server/application/LoginUseCase.cpp
     src/server/application/AuthGuard.cpp
     src/server/application/StateFanOut.cpp
+    src/server/application/PlayerSessionRegistry.cpp
+    src/server/application/DisconnectUseCase.cpp
+    src/server/application/ReconnectUseCase.cpp
+    src/server/infrastructure/time/SystemClock.cpp
+    src/server/infrastructure/security/SodiumTokenGenerator.cpp
     src/core/model/Board.cpp
     src/core/rules/Movement.cpp
     src/core/rules/RuleEngine.cpp
@@ -91,6 +110,7 @@ target_link_libraries(chess_server PRIVATE
     asio
     nlohmann_json::nlohmann_json
     Threads::Threads
+    sodium
 )
 target_compile_definitions(chess_server PRIVATE PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
 
@@ -134,9 +154,11 @@ add_custom_command(TARGET chess_game POST_BUILD
 add_executable(chess_gui
     src/app/main_gui.cpp
     src/client_net/application/ServerConnection.cpp
+    src/client_net/application/AutoReconnector.cpp
+    src/client_net/application/SnapshotCache.cpp
     src/client_net/infrastructure/WebSocketClientLink.cpp
     src/client_net/infrastructure/ClientLogger.cpp
-    src/server/infrastructure/logging/FileLogger.cpp
+    src/shared/logging/FileLogger.cpp
     src/view/canvas/img.cpp
     src/view/canvas/ImgCanvas.cpp
     src/view/canvas/WindowMapper.cpp
@@ -148,12 +170,14 @@ add_executable(chess_gui
     src/view/assets/SpriteLoader.cpp
     src/view/assets/AnimationConfig.cpp
     src/view/hud/PlayerNamesHud.cpp
+    src/view/hud/DisconnectCountdownHud.cpp
+    src/view/hud/ReconnectingHud.cpp
     src/core/input/BoardMapper.cpp
     src/core/input/Controller.cpp
     src/core/model/Board.cpp
     src/view/input/ClickLogger.cpp
-    src/server/protocol/mappers/GameSnapshotMapper.cpp
-    src/server/protocol/mappers/MoveRequestMapper.cpp
+    src/shared/protocol/mappers/GameSnapshotMapper.cpp
+    src/shared/protocol/mappers/MoveRequestMapper.cpp
 )
 target_include_directories(chess_gui PRIVATE src src/core ${OpenCV_INCLUDE_DIRS})
 target_link_directories(chess_gui PRIVATE ${OpenCV_LIB_DIR})
@@ -249,19 +273,26 @@ add_executable(chess_tests
         tests/unit/server/AuthGuard.tests.cpp
         tests/unit/server/FileLogger.tests.cpp
         tests/unit/server/LoggingTransport.tests.cpp
+        tests/unit/server/PlayerSessionRegistry.tests.cpp
+        tests/unit/server/DisconnectReconnect.tests.cpp
+        tests/unit/server/ReconnectUseCase.tests.cpp
         src/server/protocol/MessageRouter.cpp
-        src/server/protocol/mappers/MoveRequestMapper.cpp
-        src/server/protocol/mappers/GameSnapshotMapper.cpp
+        src/shared/protocol/mappers/MoveRequestMapper.cpp
+        src/shared/protocol/mappers/GameSnapshotMapper.cpp
         src/server/infrastructure/bus/InProcessEventBus.cpp
         src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
         src/server/infrastructure/transport/LoggingTransport.cpp
-        src/server/infrastructure/logging/FileLogger.cpp
+        src/shared/logging/FileLogger.cpp
         src/server/application/ConnectionManager.cpp
         src/server/application/GameSession.cpp
         src/server/application/MakeMoveUseCase.cpp
         src/server/application/LoginUseCase.cpp
         src/server/application/AuthGuard.cpp
         src/server/application/StateFanOut.cpp
+        src/server/application/PlayerSessionRegistry.cpp
+        src/server/application/DisconnectUseCase.cpp
+        src/server/application/ReconnectUseCase.cpp
+        src/server/infrastructure/time/SystemClock.cpp
         src/core/model/Board.cpp
         src/core/rules/Movement.cpp
         src/core/rules/RuleEngine.cpp
@@ -297,10 +328,13 @@ add_executable(chess_tests
         tests/unit/client_net/doctest_main.cpp
         tests/unit/client_net/ServerConnection.tests.cpp
         tests/unit/client_net/ClientLogger.tests.cpp
+        tests/unit/client_net/AutoReconnector.tests.cpp
         src/client_net/application/ServerConnection.cpp
+        src/client_net/application/AutoReconnector.cpp
+    src/client_net/application/SnapshotCache.cpp
         src/client_net/infrastructure/ClientLogger.cpp
-        src/server/protocol/mappers/GameSnapshotMapper.cpp
-        src/server/protocol/mappers/MoveRequestMapper.cpp
+        src/shared/protocol/mappers/GameSnapshotMapper.cpp
+        src/shared/protocol/mappers/MoveRequestMapper.cpp
     )
     target_include_directories(chess_client_tests PRIVATE src src/core third_party)
     target_link_libraries(chess_client_tests PRIVATE

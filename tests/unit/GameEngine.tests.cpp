@@ -197,6 +197,38 @@ TEST_CASE("capturing_king_ends_game_and_blocks_further_moves")
     CHECK(tokenAt(engine.board(), 0, 2) == "wR");
 }
 
+TEST_CASE("resign_on_a_fresh_game_ends_it_in_the_opponents_favor")
+{
+    GameEngine engine(makeBoard({{"wR", ".", ".", "."}}), registry);
+
+    CHECK(engine.resign('w'));
+
+    const GameSnapshot snap = engine.snapshot();
+    CHECK(snap.gameOver);
+    REQUIRE(snap.winner.has_value());
+    CHECK(*snap.winner == 'b');
+    REQUIRE(snap.gameOverReason.has_value());
+    CHECK(*snap.gameOverReason == GameOverReason::Resignation);
+}
+
+TEST_CASE("resign_after_a_king_capture_is_a_no_op_and_does_not_overwrite_the_winner")
+{
+    // Why this matters: a same-tick race between a king-capture and a
+    // disconnect-timeout resign must always let the king-capture win.
+    GameEngine engine(makeBoard({{"wR", ".", "bK"}}), registry);
+    REQUIRE(engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 2}}).accepted);
+    engine.wait(2000);
+    REQUIRE(engine.gameOver());
+
+    CHECK_FALSE(engine.resign('b'));
+
+    const GameSnapshot snap = engine.snapshot();
+    REQUIRE(snap.winner.has_value());
+    CHECK(*snap.winner == 'w');
+    REQUIRE(snap.gameOverReason.has_value());
+    CHECK(*snap.gameOverReason == GameOverReason::KingCaptured);
+}
+
 TEST_CASE("request_move_from_empty_cell_is_rejected")
 {
     // Why this matters: Stage 4 - RuleEngine must reject a move requested
