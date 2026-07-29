@@ -110,6 +110,8 @@ add_executable(chess_server
     src/server/application/StateFanOut.cpp
     src/server/application/MatchStarter.cpp
     src/server/application/PlayRequestUseCase.cpp
+    src/server/application/ConnectionLifecycleUseCase.cpp
+    src/server/application/ServerTick.cpp
     src/server/application/PlayerSessionRegistry.cpp
     src/server/application/DisconnectUseCase.cpp
     src/server/application/ReconnectUseCase.cpp
@@ -306,6 +308,8 @@ add_executable(chess_tests
         tests/unit/server/GameSessionStore.tests.cpp
         tests/unit/server/InMemoryMatchmakingQueue.tests.cpp
         tests/unit/server/PlayRequestUseCase.tests.cpp
+        tests/unit/server/ConnectionLifecycleUseCase.tests.cpp
+        tests/unit/server/ServerTick.tests.cpp
         tests/unit/server/LoginUseCase.tests.cpp
         tests/unit/server/AuthGuard.tests.cpp
         tests/unit/server/FileLogger.tests.cpp
@@ -335,6 +339,8 @@ add_executable(chess_tests
         src/server/application/StateFanOut.cpp
         src/server/application/MatchStarter.cpp
         src/server/application/PlayRequestUseCase.cpp
+        src/server/application/ConnectionLifecycleUseCase.cpp
+        src/server/application/ServerTick.cpp
         src/server/application/PlayerSessionRegistry.cpp
         src/server/application/DisconnectUseCase.cpp
         src/server/application/ReconnectUseCase.cpp

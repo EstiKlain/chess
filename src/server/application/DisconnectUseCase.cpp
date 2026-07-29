@@ -17,6 +17,11 @@ void DisconnectUseCase::onDisconnected(const std::string& connectionId) {
 }
 
 void DisconnectUseCase::tick(long nowMs) {
+    for (const std::string& token : pendingRemoval_) {
+        sessions_.remove(token);
+    }
+    pendingRemoval_.clear();
+
     const auto disconnected = sessions_.disconnectedEntries();
 
     stillDisconnectedScratch_.clear();
@@ -38,7 +43,7 @@ void DisconnectUseCase::tick(long nowMs) {
             if (entry.session != nullptr) {
                 entry.session->resign(entry.color);
             }
-            sessions_.remove(token);
+            pendingRemoval_.insert(token);
             lastSentSecondsLeft_.erase(token);
             continue;
         }

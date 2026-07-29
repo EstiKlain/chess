@@ -151,6 +151,32 @@ TEST_CASE("ReconnectUseCase: a valid, still-disconnected token re-binds the conn
     CHECK(opponentCountdown.find("\"secondsLeft\":0") != std::string::npos);
 }
 
+TEST_CASE("ReconnectUseCase: a token for an already-resigned session gets SESSION_EXPIRED, even before the registry entry is physically removed") {
+    // DisconnectUseCase now defers removing a resigned token's registry
+    // entry by one tick (so EloUpdateUseCase can still read it in the same
+    // server tick) - this proves the "can't rejoin a finished game"
+    // guarantee holds regardless of that removal timing, via the gameOver
+    // check here rather than the entry's mere existence.
+    GameSession session(GameEngine(makeBoard(), registry));
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    ConnectionManager connections;
+    const std::string token = sessions.registerNew("alice", 'w', &session, "white-conn");
+    sessions.markDisconnected("white-conn", 0);
+    REQUIRE(session.resign('w'));  // simulates DisconnectUseCase's timeout resignation
+
+    FakeIdentityStore identities;
+    FakeTransport transport;
+    FakeUserRepository users;
+    ReconnectUseCase useCase(sessions, connections, identities, transport, users);
+
+    useCase.handleReconnect("white-conn-2", "r1", nlohmann::json{{"sessionToken", token}});
+
+    REQUIRE(transport.sent.size() == 1);
+    CHECK(transport.sent[0].second.find("SESSION_EXPIRED") != std::string::npos);
+    CHECK_FALSE(connections.sessionFor("white-conn-2").has_value());
+}
+
 TEST_CASE("ReconnectUseCase: an unknown token gets SESSION_EXPIRED") {
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);

@@ -26,7 +26,8 @@ void ReconnectUseCase::handleReconnect(const std::string& connectionId, const st
     }
 
     const auto entry = sessions_.find(dto.sessionToken);
-    if (!entry.has_value() || !sessions_.reconnect(dto.sessionToken, connectionId)) {
+    const bool gameAlreadyOver = entry.has_value() && entry->session != nullptr && entry->session->snapshot().gameOver;
+    if (!entry.has_value() || gameAlreadyOver || !sessions_.reconnect(dto.sessionToken, connectionId)) {
         protocol::sendError(transport_, connectionId, requestId, "SESSION_EXPIRED",
                              "no game to reconnect to for this token");
         return;

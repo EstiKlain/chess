@@ -43,4 +43,9 @@ private:
     // capacity has grown to match the peak number of concurrently
     // disconnected entries. Holds no meaning outside a single tick() call.
     std::unordered_set<std::string> stillDisconnectedScratch_;
+
+    // Tokens resigned this tick, removed from `sessions_` only on the NEXT
+    // tick() - EloUpdateUseCase still needs to read this entry right after
+    // this call, in the same server tick.
+    std::unordered_set<std::string> pendingRemoval_;
 };
