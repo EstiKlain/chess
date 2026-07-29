@@ -19,4 +19,9 @@ namespace server_config
     // constant) - keep both in sync by hand if this ever changes.
     constexpr int kInitialElo = 1200;
 
+    // PLAY matchmaking: how close two players' Elo must be to match, and
+    // how long a player waits before NO_MATCH_FOUND.
+    constexpr int kEloMatchRange = 100;
+    constexpr int kMatchmakingTimeoutMs = 60000;
+
 }

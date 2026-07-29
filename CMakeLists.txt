@@ -96,12 +96,14 @@ add_executable(chess_server
     src/server/infrastructure/transport/WebSocketTransport.cpp
     src/server/infrastructure/transport/LoggingTransport.cpp
     src/server/infrastructure/time/AsioScheduler.cpp
+    src/server/infrastructure/matchmaking/InMemoryMatchmakingQueue.cpp
     src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
     src/server/infrastructure/persistence/InMemoryUserRepository.cpp
     src/shared/logging/FileLogger.cpp
     src/shared/protocol/LogRedaction.cpp
     src/server/application/ConnectionManager.cpp
     src/server/application/GameSession.cpp
+    src/server/application/GameSessionStore.cpp
     src/server/application/MakeMoveUseCase.cpp
     src/server/application/LoginUseCase.cpp
     src/server/application/AuthGuard.cpp
@@ -171,13 +173,7 @@ add_custom_command(TARGET chess_game POST_BUILD
         "$<TARGET_FILE_DIR:chess_game>"
 )
 
-# --- chess_gui: the real GUI, now a networked client (Server-Iteration ----
-# 3.5) - main_gui.cpp no longer constructs a local GameEngine at all, so
-# the rule-engine sources it used to link (GameEngine/RuleEngine/
-# RealTimeArbiter/PieceRules/Movement/GameOverRule/BoardParser/BoardPrinter)
-# are dropped here - that logic now lives only in chess_server. Board
-# itself is still needed (Controller's click hit-testing against a
-# network-synced mirror board), so core/model/Board.cpp + BoardMapper stay.
+
 add_executable(chess_gui
     src/app/main_gui.cpp
     src/client_net/application/ServerConnection.cpp
@@ -305,6 +301,8 @@ add_executable(chess_tests
         tests/unit/server/Mappers.tests.cpp
         tests/unit/server/MakeMoveUseCase.tests.cpp
         tests/unit/server/ConnectionManager.tests.cpp
+        tests/unit/server/GameSessionStore.tests.cpp
+        tests/unit/server/InMemoryMatchmakingQueue.tests.cpp
         tests/unit/server/LoginUseCase.tests.cpp
         tests/unit/server/AuthGuard.tests.cpp
         tests/unit/server/FileLogger.tests.cpp
@@ -320,12 +318,14 @@ add_executable(chess_tests
         src/shared/protocol/mappers/GameSnapshotMapper.cpp
         src/shared/protocol/LogRedaction.cpp
         src/server/infrastructure/bus/InProcessEventBus.cpp
+        src/server/infrastructure/matchmaking/InMemoryMatchmakingQueue.cpp
         src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
         src/server/infrastructure/persistence/InMemoryUserRepository.cpp
         src/server/infrastructure/transport/LoggingTransport.cpp
         src/shared/logging/FileLogger.cpp
         src/server/application/ConnectionManager.cpp
         src/server/application/GameSession.cpp
+        src/server/application/GameSessionStore.cpp
         src/server/application/MakeMoveUseCase.cpp
         src/server/application/LoginUseCase.cpp
         src/server/application/AuthGuard.cpp
