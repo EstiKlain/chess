@@ -26,8 +26,8 @@ public:
     /// Forwards to GameEngine::requestMove under the session's lock.
     MoveResult requestMove(const MoveRequest& request);
 
-    /// Forwards to GameEngine::requestJump under the session's lock.
-    JumpResult requestJump(int row, int col);
+    /// Forwards to GameEngine::requestJump under the session's lock. color is the caller's asserted piece color (see MoveRequest::requesterColor for the '\0' sentinel convention).
+    JumpResult requestJump(int row, int col, char color = '\0');
 
     /// Forwards to GameEngine::snapshot under the session's lock.
     GameSnapshot snapshot() const;

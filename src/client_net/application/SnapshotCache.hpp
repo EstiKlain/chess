@@ -20,14 +20,17 @@
 // render-loop thread.
 class SnapshotCache {
 public:
-    /// Stores a freshly-received snapshot/roster. Also clears the disconnect countdown if the game is now over - a countdown never outlives the game, regardless of why it ended (king capture or an auto-resign timeout).
-    void updateFromStateUpdate(GameSnapshot snapshot, std::vector<PlayerDto> players);
+    /// Stores a freshly-received snapshot/roster/role. Also clears the disconnect countdown if the game is now over - a countdown never outlives the game, regardless of why it ended (king capture or an auto-resign timeout).
+    void updateFromStateUpdate(GameSnapshot snapshot, std::vector<PlayerDto> players, char role);
 
     /// Blocks until at least one snapshot has been stored.
     GameSnapshot awaitInitialSnapshot();
 
     GameSnapshot latestSnapshot() const;
     std::vector<PlayerDto> latestPlayers() const;
+
+    /// This connection's own color, per the most recent STATE_UPDATE's per-recipient "role" field. '\0' until the first STATE_UPDATE arrives - callers treat that the same as "unrestricted" (see MoveRequest::requesterColor's '\0' convention).
+    char myColor() const;
 
     void setSessionToken(std::string token);
     std::optional<std::string> sessionToken() const;
@@ -45,6 +48,7 @@ private:
     std::condition_variable snapshotCv_;
     GameSnapshot snapshot_;
     std::vector<PlayerDto> players_;
+    char myColor_ = '\0';
     bool hasSnapshot_ = false;
     std::optional<std::string> sessionToken_;
     std::optional<int> disconnectCountdownSeconds_;

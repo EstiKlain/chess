@@ -172,6 +172,10 @@ int main()
         // displays what STATE_UPDATE tells it.
         const GameSnapshot snapshot = connection.latestSnapshot();
         syncBoardFromSnapshot(mirrorBoard, snapshot);
+        // UX-only pre-check (see Controller::setLocalColor's doc comment) -
+        // refreshed every tick from the latest STATE_UPDATE, same as the
+        // mirror board itself, rather than set once after login.
+        controller.setLocalColor(connection.myColor());
 
         const auto animated = PieceAnimator::computePlacements(snapshot, cellSize, animLookup);
         const auto players = toPlayerNames(connection.latestPlayers());

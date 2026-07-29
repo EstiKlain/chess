@@ -230,6 +230,59 @@ TEST_CASE("request_move_from_empty_cell_is_rejected")
     CHECK(result.reason == "empty_source");
 }
 
+TEST_CASE("request_move_with_wrong_requesterColor_is_rejected_as_not_your_piece")
+{
+    // Why this matters: this is the core ownership guarantee - a caller
+    // asserting the wrong color must never be allowed to move a piece it
+    // doesn't own, regardless of whether the move itself would otherwise be legal.
+    GameEngine engine(makeBoard({{"wR", ".", ".", "."}}), registry);
+
+    MoveResult result = engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 3}, 'b'});
+
+    CHECK_FALSE(result.accepted);
+    CHECK(result.reason == "not_your_piece");
+}
+
+TEST_CASE("request_move_with_matching_requesterColor_is_accepted")
+{
+    GameEngine engine(makeBoard({{"wR", ".", ".", "."}}), registry);
+
+    MoveResult result = engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 3}, 'w'});
+
+    CHECK(result.accepted);
+}
+
+TEST_CASE("request_move_with_default_requesterColor_skips_the_ownership_check")
+{
+    // Why this matters: '\0' is the "no owner asserted" sentinel - existing
+    // callers (ScriptRunner, most of this file's own tests) that never set
+    // requesterColor must keep working exactly as before this feature existed.
+    GameEngine engine(makeBoard({{"wR", ".", ".", "."}}), registry);
+
+    MoveResult result = engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 3}});
+
+    CHECK(result.accepted);
+}
+
+TEST_CASE("request_jump_with_wrong_requesterColor_is_rejected_as_not_your_piece")
+{
+    GameEngine engine(makeBoard({{"wR", "bR", ".", "."}}), registry);
+
+    JumpResult result = engine.requestJump(0, 1, 'w');
+
+    CHECK_FALSE(result.accepted);
+    CHECK(result.reason == "not_your_piece");
+}
+
+TEST_CASE("request_jump_with_matching_requesterColor_is_accepted")
+{
+    GameEngine engine(makeBoard({{"wR", ".", ".", "."}}), registry);
+
+    JumpResult result = engine.requestJump(0, 0, 'w');
+
+    CHECK(result.accepted);
+}
+
 TEST_CASE("run_commands_respect_global_route_integration")
 {
     // Why this matters: the command layer should preserve the same

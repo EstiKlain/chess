@@ -57,13 +57,16 @@ public:
     /// Blocks until at least one STATE_UPDATE has been received (the server's tick loop broadcasts unconditionally, so this resolves within one tick interval of a successful login). Used to learn the real board dimensions before constructing anything geometry-dependent, instead of assuming a fixed board size anywhere in client code.
     GameSnapshot awaitInitialSnapshot();
 
-    /// Controller-compatible requester interface - matches Controller's template constructor exactly.
+    /// Controller-compatible requester interface - matches Controller's template constructor exactly. The color parameter is accepted only for signature compatibility with GameEngine::requestJump - never sent over the wire (the server only trusts its own ConnectionBinding, see MoveRequestMapper::toDomain's doc comment).
     void requestMove(const MoveRequest& request);
-    void requestJump(int row, int col);
+    void requestJump(int row, int col, char color = '\0');
 
     /// Returns a copy of the most recently received snapshot/roster. Thread-safe (mutex-guarded) - whatever thread the link delivers messages on writes, the render-loop thread reads, same defensive pattern already used by GameSession for the analogous cross-thread problem.
     GameSnapshot latestSnapshot() const;
     std::vector<PlayerDto> latestPlayers() const;
+
+    /// This connection's own assigned color ('w'/'b'), learned from the "role" field of the most recent STATE_UPDATE. '\0' until the first STATE_UPDATE arrives after login.
+    char myColor() const;
 
     /// The sessionToken received in LOGIN_OK's payload (Server-Iteration 5), if login has succeeded - nullopt otherwise. Not yet consumed by anything in this class; stored so a future RECONNECT flow doesn't need to touch LOGIN_OK handling again.
     std::optional<std::string> sessionToken() const;

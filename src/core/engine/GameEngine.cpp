@@ -32,6 +32,9 @@ MoveResult GameEngine::requestMove(const MoveRequest &request)
 
     const Piece *selected = board_.pieceAt(Position{fromRow, fromCol});
 
+    if (selected && request.requesterColor != '\0' && selected->color != request.requesterColor)
+        return {false, "not_your_piece"};
+
     if (selected && arbiter_.isPieceResting(selected->id))
         return {false, "resting"};
 
@@ -59,7 +62,7 @@ MoveResult GameEngine::requestMove(const MoveRequest &request)
     return {true, legality.reason};
 }
 
-JumpResult GameEngine::requestJump(int row, int col)
+JumpResult GameEngine::requestJump(int row, int col, char requesterColor)
 {
     if (gameOver_)
         return {false, "game_over"};
@@ -70,6 +73,9 @@ JumpResult GameEngine::requestJump(int row, int col)
     const Piece *selected = board_.pieceAt(Position{row, col});
     if (!selected)
         return {false, "empty_source"};
+
+    if (requesterColor != '\0' && selected->color != requesterColor)
+        return {false, "not_your_piece"};
 
     if (arbiter_.isPieceResting(selected->id))
         return {false, "resting"};

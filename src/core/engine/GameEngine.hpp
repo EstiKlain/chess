@@ -44,7 +44,9 @@ public:
     MoveResult requestMove(const MoveRequest &request);
 
     // Symmetric to requestMove, for the jump mechanic (was sendJump).
-    JumpResult requestJump(int row, int col);
+    // requesterColor follows the same '\0' == "no owner asserted" convention
+    // as MoveRequest::requesterColor.
+    JumpResult requestJump(int row, int col, char requesterColor = '\0');
 
     // Advances the clock and lets the arbiter resolve anything that is due.
     void wait(long ms);

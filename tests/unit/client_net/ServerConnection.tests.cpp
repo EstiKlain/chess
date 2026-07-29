@@ -241,6 +241,24 @@ TEST_CASE("ServerConnection: a STATE_UPDATE with gameOver true clears any in-eff
     CHECK_FALSE(connection.latestDisconnectCountdown().has_value());
 }
 
+TEST_CASE("ServerConnection: myColor() is '\\0' before any STATE_UPDATE arrives") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+
+    CHECK(connection.myColor() == '\0');
+}
+
+TEST_CASE("ServerConnection: myColor() reflects the most recent STATE_UPDATE's per-recipient role") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+
+    link.deliver(
+        R"({"type":"STATE_UPDATE","requestId":"","payload":{)"
+        R"("rows":8,"cols":8,"pieces":[],"gameOver":false,"nowMs":1,"role":"b","players":[]}})");
+
+    CHECK(connection.myColor() == 'b');
+}
+
 TEST_CASE("ServerConnection: reconnect() without ever having logged in returns Retry, sends nothing") {
     FakeServerLink link;
     ServerConnection connection(link);

@@ -16,8 +16,8 @@ MakeMoveUseCase::MakeMoveUseCase(IEventBus &bus, ITransport &transport, Connecti
 void MakeMoveUseCase::handleMove(const std::string &connectionId, const std::string &requestId,
                                  const nlohmann::json &payload)
 {
-    const auto sessionOpt = lookupBoundSession(connectionId, requestId);
-    if (!sessionOpt.has_value())
+    const auto bindingOpt = lookupBoundSession(connectionId, requestId);
+    if (!bindingOpt.has_value())
     {
         return;
     }
@@ -34,16 +34,16 @@ void MakeMoveUseCase::handleMove(const std::string &connectionId, const std::str
         return;
     }
 
-    GameSession &session = **sessionOpt;
-    const MoveResult result = session.requestMove(MoveRequestMapper::toDomain(dto));
+    GameSession &session = *bindingOpt->session;
+    const MoveResult result = session.requestMove(MoveRequestMapper::toDomain(dto, bindingOpt->color));
     finishRequest(connectionId, requestId, session, result.accepted, result.reason);
 }
 
 void MakeMoveUseCase::handleJump(const std::string &connectionId, const std::string &requestId,
                                  const nlohmann::json &payload)
 {
-    const auto sessionOpt = lookupBoundSession(connectionId, requestId);
-    if (!sessionOpt.has_value())
+    const auto bindingOpt = lookupBoundSession(connectionId, requestId);
+    if (!bindingOpt.has_value())
     {
         return;
     }
@@ -60,13 +60,13 @@ void MakeMoveUseCase::handleJump(const std::string &connectionId, const std::str
         return;
     }
 
-    GameSession &session = **sessionOpt;
-    const JumpResult result = session.requestJump(dto.row, dto.col);
+    GameSession &session = *bindingOpt->session;
+    const JumpResult result = session.requestJump(dto.row, dto.col, bindingOpt->color);
     finishRequest(connectionId, requestId, session, result.accepted, result.reason);
 }
 
-std::optional<GameSession *> MakeMoveUseCase::lookupBoundSession(const std::string &connectionId,
-                                                                 const std::string &requestId)
+std::optional<ConnectionBinding> MakeMoveUseCase::lookupBoundSession(const std::string &connectionId,
+                                                                     const std::string &requestId)
 {
     const auto binding = connections_.sessionFor(connectionId);
     if (!binding.has_value() || binding->session == nullptr)
@@ -75,7 +75,7 @@ std::optional<GameSession *> MakeMoveUseCase::lookupBoundSession(const std::stri
                             "connection is not bound to a game session");
         return std::nullopt;
     }
-    return binding->session;
+    return binding;
 }
 
 void MakeMoveUseCase::finishRequest(const std::string &connectionId, const std::string &requestId,

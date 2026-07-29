@@ -54,7 +54,7 @@ void ServerConnection::requestMove(const MoveRequest& request) {
     send("MOVE", nextRequestId(), MoveRequestMapper::toDto(request));
 }
 
-void ServerConnection::requestJump(int row, int col) {
+void ServerConnection::requestJump(int row, int col, char /*color*/) {
     send("JUMP", nextRequestId(), JumpDto{row, col});
 }
 
@@ -64,6 +64,10 @@ GameSnapshot ServerConnection::latestSnapshot() const {
 
 std::vector<PlayerDto> ServerConnection::latestPlayers() const {
     return cache_.latestPlayers();
+}
+
+char ServerConnection::myColor() const {
+    return cache_.myColor();
 }
 
 std::optional<std::string> ServerConnection::sessionToken() const {
@@ -127,7 +131,7 @@ void ServerConnection::onMessage(const std::string& rawJson) {
         try {
             const StateUpdateDto dto = envelope.payload.get<StateUpdateDto>();
             GameSnapshot newSnapshot = GameSnapshotMapper::fromDto(dto);
-            cache_.updateFromStateUpdate(std::move(newSnapshot), dto.players);
+            cache_.updateFromStateUpdate(std::move(newSnapshot), dto.players, dto.role);
         } catch (const std::exception&) {
             // Malformed payload - ignore, keep the last good snapshot.
         }
