@@ -57,6 +57,9 @@ public:
     /// All (username, color) pairs currently registered for this session, connected or not - lets EloUpdateUseCase resolve both players' usernames after a game ends even if one of them is mid-disconnect-window.
     std::vector<std::pair<std::string, char>> usernamesFor(const GameSession* session) const;
 
+    /// Every entry registered for this username, across every session it has ever played. Does not filter by gameOver - that's GameSession's concept, not this registry's.
+    std::vector<PlayerSessionEntry> entriesForUsername(const std::string& username) const;
+
 private:
     ITokenGenerator& tokenGenerator_;
     std::unordered_map<std::string, PlayerSessionEntry> byToken_;

@@ -84,18 +84,10 @@ int main() {
     std::ofstream serverLogStream(std::string(PROJECT_ROOT) + "/logs/server.log", std::ios::app);
     FileLogger serverLogger(serverLogStream);
 
-    // One shared io_context drives everything - message handling AND the
-    // periodic tick (via AsioScheduler below) run on the single thread that
-    // calls ioContext.run() (inside transport.run(), further down). This is
-    // the Server-Iteration 7 threading decision: previously a second,
-    // detached thread called GameSession::wait()/etc. on its own timer,
-    // racing against this thread's writes to ConnectionManager/
-    // PlayerSessionRegistry with no lock protecting either. One thread
-    // means that race cannot happen at all - see CLAUDE.md's Iteration 7
-    // section for the fuller reasoning (this was chosen over adding mutexes
-    // because it removes the race instead of serializing around it, and is
-    // the necessary first step toward a future thread-pool-plus-strands
-    // design, not a competing alternative to it).
+    // Shared by WebSocketTransport and AsioScheduler below, so message
+    // handling and the tick run on one thread - no lock needed on
+    // ConnectionManager/PlayerSessionRegistry (see CLAUDE.md's Iteration 7
+    // threading decision).
     asio::io_context ioContext;
 
     // LoggingTransport wraps the real transport and is what everyone below
@@ -203,31 +195,11 @@ int main() {
         reconnectUseCase.handleReconnect(event.connectionId, event.requestId, event.payload);
     });
 
-    // Periodic tick, driven by AsioScheduler on the same thread as message
-    // handling (see the io_context comment above) - the server-side
-    // equivalent of chess_gui's render-loop frame delta
-    // (src/app/main_gui.cpp's `while (!canvas.shouldClose())` loop). Each
-    // firing advances the game clock via the same GameEngine::wait(ms) that
-    // loop already calls, THEN broadcasts the resulting state to every
-    // connection. The broadcast half was added after Iteration 3.5 manual
-    // testing showed STATE_UPDATE was only ever sent from LOGIN/MOVE/JUMP -
-    // discrete events - so a networked client's view of an in-flight motion
-    // never advanced between those events (no animation, and a move's own
-    // visual effect only appeared once the NEXT move triggered a fresh
-    // STATE_UPDATE). Broadcasting every tick, not only on request-triggered
-    // events, is what makes the client's snapshot (and its nowMs) advance
-    // continuously, the same way the local build's per-frame
-    // engine.snapshot() call always did. Not correlated to any request, so
-    // ("", "") - same convention already used by the StateFanOut call after
-    // a successful login.
-    // disconnectUseCase.tick(...) is called AFTER session.wait(deltaMs) -
-    // deliberately, not incidentally: wait() resolves a same-tick
-    // king-capture first (setting GameEngine's winner/reason), so if a
-    // king-capture and a disconnect-timeout land in the same tick,
-    // GameSession::resign()'s own "already over" guard correctly refuses to
-    // overwrite it. Reversing this order would let a same-tick resign win
-    // instead of the legitimate king-capture outcome - see
-    // DisconnectUseCase.hpp's own ordering-guarantee comment.
+    // Broadcasts every tick, not just on MOVE/JUMP, so animation and clocks
+    // advance continuously client-side (see Iteration 3.5 notes in
+    // CLAUDE.md). disconnectUseCase.tick() runs AFTER session.wait() so a
+    // same-tick king-capture wins over a same-tick disconnect-resign, never
+    // the reverse - see DisconnectUseCase.hpp's ordering-guarantee comment.
     AsioScheduler scheduler(ioContext);
     scheduler.schedulePeriodic(server_config::kTickIntervalMs, [&](long deltaMs) {
         session.wait(deltaMs);

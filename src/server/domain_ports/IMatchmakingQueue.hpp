@@ -13,16 +13,10 @@ struct WaitingPlayer {
     long enqueuedAtMs = 0;
 };
 
-// Port: PlayRequestUseCase depends on THIS, never on a concrete queue
-// implementation directly. A concrete class (not a port faked in tests)
-// would have been enough for a single-process server, but this server is
-// meant to run as one of several processes behind a load balancer - a
-// process-local queue can never match two players connected to different
-// processes. The real production implementation is a Redis Sorted Set
-// (score = Elo, ZRANGEBYSCORE for the range query) shared across every
-// server instance; InMemoryMatchmakingQueue is what runs today, behind
-// this same port, exactly like IUserRepository's InMemory-now/Postgres-
-// later precedent.
+// Port, not just a concrete class: a process-local queue can't match players
+// connected to different server instances behind a load balancer. Real
+// production implementation is a Redis Sorted Set (score = Elo,
+// ZRANGEBYSCORE); InMemoryMatchmakingQueue runs today behind this same port.
 class IMatchmakingQueue {
 public:
     virtual ~IMatchmakingQueue() = default;

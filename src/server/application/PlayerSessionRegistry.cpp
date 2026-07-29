@@ -67,3 +67,13 @@ std::vector<std::pair<std::string, char>> PlayerSessionRegistry::usernamesFor(co
     }
     return result;
 }
+
+std::vector<PlayerSessionEntry> PlayerSessionRegistry::entriesForUsername(const std::string& username) const {
+    std::vector<PlayerSessionEntry> result;
+    for (const auto& [token, entry] : byToken_) {
+        if (entry.username == username) {
+            result.push_back(entry);
+        }
+    }
+    return result;
+}

@@ -61,12 +61,7 @@ public:
 private:
     std::unordered_map<std::string, ConnectionBinding> connections_;
 
-    // Secondary index: session -> its connectionIds, kept in sync by every
-    // mutator below. Exists purely so connectionsFor() doesn't have to scan
-    // every connection in the server for every session on every tick -
-    // O(this session's players) instead of O(every connected player),
-    // which matters once many GameSessions run concurrently (Server-
-    // Iteration 7). Public API is unchanged; no caller needs to know this
-    // index exists.
+    // Secondary index kept in sync by every mutator below, so connectionsFor()
+    // is O(this session's players) instead of scanning every connection.
     std::unordered_map<const GameSession*, std::vector<std::string>> bySession_;
 };
