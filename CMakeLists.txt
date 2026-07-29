@@ -95,6 +95,7 @@ add_executable(chess_server
     src/server/infrastructure/bus/InProcessEventBus.cpp
     src/server/infrastructure/transport/WebSocketTransport.cpp
     src/server/infrastructure/transport/LoggingTransport.cpp
+    src/server/infrastructure/time/AsioScheduler.cpp
     src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
     src/server/infrastructure/persistence/InMemoryUserRepository.cpp
     src/shared/logging/FileLogger.cpp

@@ -1,12 +1,11 @@
-#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
-#include <thread>
 
+#include <asio.hpp>
 #include <nlohmann/json.hpp>
 
 #include "engine/GameEngine.hpp"
@@ -28,6 +27,7 @@
 #include "server/domain_ports/IEventBus.hpp"
 #include "server/domain_ports/IIdentityStore.hpp"
 #include "server/domain_ports/IPasswordHasher.hpp"
+#include "server/domain_ports/IScheduler.hpp"
 #include "server/domain_ports/ITokenGenerator.hpp"
 #include "server/domain_ports/ITransport.hpp"
 #include "server/domain_ports/IUserRepository.hpp"
@@ -36,6 +36,7 @@
 #include "server/infrastructure/persistence/InMemoryUserRepository.hpp"
 #include "server/infrastructure/security/SodiumPasswordHasher.hpp"
 #include "server/infrastructure/security/SodiumTokenGenerator.hpp"
+#include "server/infrastructure/time/AsioScheduler.hpp"
 #include "server/infrastructure/time/SystemClock.hpp"
 #include "server/infrastructure/transport/LoggingTransport.hpp"
 #include "server/infrastructure/transport/WebSocketTransport.hpp"
@@ -83,12 +84,26 @@ int main() {
     std::ofstream serverLogStream(std::string(PROJECT_ROOT) + "/logs/server.log", std::ios::app);
     FileLogger serverLogger(serverLogStream);
 
+    // One shared io_context drives everything - message handling AND the
+    // periodic tick (via AsioScheduler below) run on the single thread that
+    // calls ioContext.run() (inside transport.run(), further down). This is
+    // the Server-Iteration 7 threading decision: previously a second,
+    // detached thread called GameSession::wait()/etc. on its own timer,
+    // racing against this thread's writes to ConnectionManager/
+    // PlayerSessionRegistry with no lock protecting either. One thread
+    // means that race cannot happen at all - see CLAUDE.md's Iteration 7
+    // section for the fuller reasoning (this was chosen over adding mutexes
+    // because it removes the race instead of serializing around it, and is
+    // the necessary first step toward a future thread-pool-plus-strands
+    // design, not a competing alternative to it).
+    asio::io_context ioContext;
+
     // LoggingTransport wraps the real transport and is what everyone below
     // actually receives as `transport` - AuthGuard/MessageRouter/the
-    // use-cases/the tick thread never change, since they were always
+    // use-cases/the tick callback never change, since they were always
     // written against ITransport&, never against WebSocketTransport by
     // name (the same trick already used for AuthGuard wrapping the bus).
-    WebSocketTransport realTransport;
+    WebSocketTransport realTransport(&ioContext);
     LoggingTransport transport(realTransport, serverLogger);
 
     ConnectionManager connections;
@@ -188,23 +203,23 @@ int main() {
         reconnectUseCase.handleReconnect(event.connectionId, event.requestId, event.payload);
     });
 
-    // Tick thread: the server-side equivalent of chess_gui's render-loop
-    // frame delta (src/app/main_gui.cpp's `while (!canvas.shouldClose())`
-    // loop) - measures real elapsed time and advances the game clock via
-    // the same GameEngine::wait(ms) that loop already calls, THEN broadcasts
-    // the resulting state to every connection. The broadcast half was added
-    // after Iteration 3.5 manual testing showed STATE_UPDATE was only ever
-    // sent from LOGIN/MOVE/JUMP - discrete events - so a networked client's
-    // view of an in-flight motion never advanced between those events (no
-    // animation, and a move's own visual effect only appeared once the NEXT
-    // move triggered a fresh STATE_UPDATE). Broadcasting every tick, not
-    // only on request-triggered events, is what makes the client's snapshot
-    // (and its nowMs) advance continuously, the same way the local build's
-    // per-frame engine.snapshot() call always did. Not correlated to any
-    // request, so ("", "") - same convention already used by the
-    // StateFanOut call after a successful login. Detached: the process has
-    // no graceful shutdown path yet (transport.stop() is never called
-    // anywhere today), so there is nothing meaningful to join on.
+    // Periodic tick, driven by AsioScheduler on the same thread as message
+    // handling (see the io_context comment above) - the server-side
+    // equivalent of chess_gui's render-loop frame delta
+    // (src/app/main_gui.cpp's `while (!canvas.shouldClose())` loop). Each
+    // firing advances the game clock via the same GameEngine::wait(ms) that
+    // loop already calls, THEN broadcasts the resulting state to every
+    // connection. The broadcast half was added after Iteration 3.5 manual
+    // testing showed STATE_UPDATE was only ever sent from LOGIN/MOVE/JUMP -
+    // discrete events - so a networked client's view of an in-flight motion
+    // never advanced between those events (no animation, and a move's own
+    // visual effect only appeared once the NEXT move triggered a fresh
+    // STATE_UPDATE). Broadcasting every tick, not only on request-triggered
+    // events, is what makes the client's snapshot (and its nowMs) advance
+    // continuously, the same way the local build's per-frame
+    // engine.snapshot() call always did. Not correlated to any request, so
+    // ("", "") - same convention already used by the StateFanOut call after
+    // a successful login.
     // disconnectUseCase.tick(...) is called AFTER session.wait(deltaMs) -
     // deliberately, not incidentally: wait() resolves a same-tick
     // king-capture first (setting GameEngine's winner/reason), so if a
@@ -213,24 +228,16 @@ int main() {
     // overwrite it. Reversing this order would let a same-tick resign win
     // instead of the legitimate king-capture outcome - see
     // DisconnectUseCase.hpp's own ordering-guarantee comment.
-    std::thread([&session, &connections, &identities, &transport, &disconnectUseCase, &eloUpdateUseCase, &clock]() {
-        auto lastTick = std::chrono::steady_clock::now();
-        while (true) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(server_config::kTickIntervalMs));
-            const auto now = std::chrono::steady_clock::now();
-            const long deltaMs =
-                static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(now - lastTick).count());
-            lastTick = now;
-            session.wait(deltaMs);
-            disconnectUseCase.tick(clock.nowMs());
-            // After disconnectUseCase.tick() so a same-tick disconnect-
-            // timeout resignation is visible too - see EloUpdateUseCase's
-            // own header comment for why this is a tick-loop call, not a
-            // bus subscriber.
-            eloUpdateUseCase.checkAndApply(session);
-            StateFanOut::broadcast(session, connections, identities, transport, "", "");
-        }
-    }).detach();
+    AsioScheduler scheduler(ioContext);
+    scheduler.schedulePeriodic(server_config::kTickIntervalMs, [&](long deltaMs) {
+        session.wait(deltaMs);
+        disconnectUseCase.tick(clock.nowMs());
+        // After disconnectUseCase.tick() so a same-tick disconnect-timeout
+        // resignation is visible too - see EloUpdateUseCase's own header
+        // comment for why this is a tick-loop call, not a bus subscriber.
+        eloUpdateUseCase.checkAndApply(session);
+        StateFanOut::broadcast(session, connections, identities, transport, "", "");
+    });
 
     std::cout << "[server] listening on port " << server_config::kPort << "...\n";
     transport.run(server_config::kPort);  // Blocks until transport.stop() is called.

@@ -3,10 +3,10 @@
 #include <sstream>
 #include <vector>
 
-WebSocketTransport::WebSocketTransport() {
+WebSocketTransport::WebSocketTransport(Server::io_service_ptr ioService) {
     server_.clear_access_channels(websocketpp::log::alevel::all);
     server_.clear_error_channels(websocketpp::log::elevel::all);
-    server_.init_asio();
+    server_.init_asio(ioService);
 
     server_.set_open_handler([this](ConnectionHandle hdl) {
         const std::string id = idFor(hdl);

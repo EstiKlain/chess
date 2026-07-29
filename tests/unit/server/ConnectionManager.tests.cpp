@@ -135,6 +135,40 @@ TEST_CASE("ConnectionManager: setElo on an unbound connectionId is a no-op") {
     CHECK_FALSE(connections.sessionFor("unknown-conn").has_value());
 }
 
+TEST_CASE("ConnectionManager: connectionsFor only returns the players of the session asked about, with two sessions live") {
+    // Guards the secondary bySession_ index added for Server-Iteration 7:
+    // connectionsFor must stay O(this session's players), not scan every
+    // connection in the server - and must still filter correctly once more
+    // than one GameSession exists at once.
+    ConnectionManager connections;
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    GameSession* sessionA = reinterpret_cast<GameSession*>(0x1);
+    GameSession* sessionB = reinterpret_cast<GameSession*>(0x2);
+
+    connections.onConnected("a-1", sessionA, sessions);
+    connections.onConnected("a-2", sessionA, sessions);
+    connections.bindKnown("b-1", sessionB, 'w');
+    connections.bindKnown("b-2", sessionB, 'b');
+
+    const auto forA = connections.connectionsFor(sessionA);
+    const auto forB = connections.connectionsFor(sessionB);
+
+    REQUIRE(forA.size() == 2);
+    for (const auto& [id, binding] : forA) {
+        CHECK(binding.session == sessionA);
+    }
+    REQUIRE(forB.size() == 2);
+    for (const auto& [id, binding] : forB) {
+        CHECK(binding.session == sessionB);
+    }
+
+    // Disconnecting one player of session A must not disturb session B's roster.
+    connections.onDisconnected("a-1");
+    CHECK(connections.connectionsFor(sessionA).size() == 1);
+    CHECK(connections.connectionsFor(sessionB).size() == 2);
+}
+
 TEST_CASE("ConnectionManager: bindKnown binds a connectionId directly, bypassing color assignment") {
     ConnectionManager connections;
     GameSession* session = reinterpret_cast<GameSession*>(0x1);
