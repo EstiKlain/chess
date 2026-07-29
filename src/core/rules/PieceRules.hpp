@@ -3,8 +3,10 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "model/Board.hpp"
+#include "model/Position.hpp"
 
 namespace pieceRules
 {
@@ -26,12 +28,38 @@ namespace pieceRules
     int sign(int v);
     bool isPathClear(const Board &board, int fromRow, int fromCol, int toRow, int toCol);
 
+    // Straight-line (rank/file/diagonal) cells between fromRow/fromCol and
+    // toRow/toCol, in travel order, INCLUDING the destination but not the
+    // source. Pure coordinate geometry - registered as MoveRule::pathCells
+    // for the pieces whose move traverses intermediate cells.
+    std::vector<Position> straightLinePathCells(int fromRow, int fromCol, int toRow, int toCol);
+
+    // True iff every cell in `cells` except the last (the destination) is
+    // unoccupied. `isPathClear` below is the straight-line special case of
+    // this, kept for backward compatibility with its existing callers.
+    bool isPathClearAlong(const Board &board, const std::vector<Position> &cells);
+
     struct MoveRule
     {
         MoveShapeFn shape;
         bool slides;
         MoveShapeFn captureShape = nullptr;
         std::function<bool(const Board &, int fromRow, int fromCol, int toRow, int toCol, char color)> contextGate = nullptr;
+
+        // The cells this move traverses (destination included, source
+        // excluded), in travel order - nullptr for moves with no
+        // intermediate cell at all (a knight's hop, a single-step king).
+        // Two independent things consume this:
+        //   - Movement::checkPieceShape, gated by `slides`, to decide
+        //     whether those cells must be empty (legality).
+        //   - RealTimeArbiter, unconditionally, to detect two concurrently
+        //     in-flight moves crossing the same cell (real-time timing) -
+        //     it never looks at `slides` or anything else in this struct.
+        // A future non-linear piece (e.g. one that still requires a clear
+        // path, or one that doesn't block but should still collide
+        // mid-flight) registers its own function here; no other file
+        // changes.
+        std::function<std::vector<Position>(int fromRow, int fromCol, int toRow, int toCol)> pathCells = nullptr;
     };
 
     bool pawnContextGate(const Board &board, int fromRow, int fromCol, int toRow, int toCol, char color);

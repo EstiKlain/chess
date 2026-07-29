@@ -53,37 +53,29 @@ TEST_CASE("basic_move_reaches_destination_and_origin_clears")
     CHECK(tokenAt(engine.board(), 0, 0) == ".");
 }
 
-TEST_CASE("second_move_is_rejected_while_global_route_is_busy_same_color")
+TEST_CASE("second_piece_can_move_while_another_piece_is_in_flight_same_color")
 {
-    // Why this matters: a move already in flight must block any new move
-    // request, even for the same color - there is only one global route.
-    GameEngine engine(makeBoard({{"wR", ".", ".", "."}, {"wP", ".", ".", "."}}), registry);
+    // Why this matters: two different same-color pieces may now move
+    // concurrently — only a piece already in flight blocks itself.
+    GameEngine engine(makeBoard({{".", "wR", ".", "."}, {"wP", ".", ".", "."}}), registry);
 
-    REQUIRE(engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 3}}).accepted);
+    REQUIRE(engine.requestMove(MoveRequest{Position{0, 1}, Position{0, 3}}).accepted);
 
-    MoveResult second = engine.requestMove(MoveRequest{Position{1, 0}, Position{1, 2}});
+    MoveResult second = engine.requestMove(MoveRequest{Position{1, 0}, Position{0, 0}});
 
-    CHECK_FALSE(second.accepted);
-    CHECK(second.reason == "motion_in_progress");
-    CHECK(tokenAt(engine.board(), 1, 0) == "wP");
-    CHECK(tokenAt(engine.board(), 1, 2) == ".");
+    CHECK(second.accepted);
 }
 
-TEST_CASE("second_move_is_rejected_while_global_route_is_busy_opposite_color")
+TEST_CASE("second_piece_can_move_while_another_piece_is_in_flight_opposite_color")
 {
-    // Why this matters: the critical invariant is that a black move cannot
-    // sneak through while a white move is still in flight.
     GameEngine engine(makeBoard({{"wR", ".", ".", "."}, {"bB", ".", ".", "."}}), registry);
 
     REQUIRE(engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 3}}).accepted);
-    engine.wait(700); // rook needs 3000ms total - still mid-flight
+    engine.wait(700);
 
-    MoveResult blackAttempt = engine.requestMove(MoveRequest{Position{1, 0}, Position{1, 2}});
+    MoveResult blackAttempt = engine.requestMove(MoveRequest{Position{1, 0}, Position{0, 1}});
 
-    CHECK_FALSE(blackAttempt.accepted);
-    CHECK(blackAttempt.reason == "motion_in_progress");
-    CHECK(tokenAt(engine.board(), 1, 0) == "bB");
-    CHECK(tokenAt(engine.board(), 1, 2) == ".");
+    CHECK(blackAttempt.accepted);
 }
 
 TEST_CASE("move_resolves_at_exact_boundary_in_common_route")
@@ -119,18 +111,15 @@ TEST_CASE("second_move_is_rejected_immediately_after_arrival_while_resting")
     CHECK(afterRest.accepted);
 }
 
-TEST_CASE("second_move_to_same_destination_is_rejected_while_first_still_in_flight")
+TEST_CASE("same_piece_cannot_get_a_new_destination_while_already_in_flight")
 {
-    // Why this matters: the global route blocks ANY second move while one
-    // is in flight, including one aimed at the same destination.
-    GameEngine engine(makeBoard({{"wR", ".", "bQ", "."}}), registry);
-    REQUIRE(engine.requestMove(MoveRequest{Position{0, 2}, Position{0, 1}}).accepted);
+    GameEngine engine(makeBoard({{"wR", ".", ".", "."}}), registry);
+    REQUIRE(engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 3}}).accepted);
 
-    MoveResult second = engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 1}});
+    MoveResult redirected = engine.requestMove(MoveRequest{Position{0, 0}, Position{0, 1}});
 
-    CHECK_FALSE(second.accepted);
-    CHECK(second.reason == "motion_in_progress");
-    CHECK(tokenAt(engine.board(), 0, 0) == "wR");
+    CHECK_FALSE(redirected.accepted);
+    CHECK(redirected.reason == "motion_in_progress");
 }
 
 TEST_CASE("illegal_move_attempt_leaves_no_phantom_motion")

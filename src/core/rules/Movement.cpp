@@ -34,7 +34,8 @@ MoveLegality checkPieceShape(const Board &board, const PieceMove &move, char pie
     int dCol = move.toCol - move.fromCol;
     if (!shape(dRow, dCol, color)) return {false, "illegal_piece_move"};
 
-    if (rule->slides && !pieceRules::isPathClear(board, move.fromRow, move.fromCol, move.toRow, move.toCol))
+    if (rule->slides && rule->pathCells &&
+        !pieceRules::isPathClearAlong(board, rule->pathCells(move.fromRow, move.fromCol, move.toRow, move.toCol)))
         return {false, "blocked_path"};
 
     if (rule->contextGate && !rule->contextGate(board, move.fromRow, move.fromCol, move.toRow, move.toCol, color))

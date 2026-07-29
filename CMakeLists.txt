@@ -117,6 +117,9 @@ add_executable(chess_server
     src/core/rules/Movement.cpp
     src/core/rules/RuleEngine.cpp
     src/core/rules/GameOverRule.cpp
+    src/core/rules/CaptureRule.cpp
+    src/core/rules/CollisionRule.cpp
+    src/core/rules/PromotionRule.cpp
     src/core/rules/PieceRules.cpp
     src/core/realtime/RealTimeArbiter.cpp
     src/core/io/BoardParser.cpp
@@ -147,6 +150,9 @@ add_executable(chess_game
     src/core/io/BoardPrinter.cpp
     src/core/engine/GameEngine.cpp
     src/core/engine/SnapshotSync.cpp
+    src/core/rules/CaptureRule.cpp
+    src/core/rules/CollisionRule.cpp
+    src/core/rules/PromotionRule.cpp
     src/core/rules/PieceRules.cpp
     src/core/texttests/ScriptRunner.cpp
     src/view/canvas/img.cpp
@@ -238,6 +244,9 @@ add_executable(chess_tests
         tests/unit/RealTimeArbiter.tests.cpp
         tests/unit/RuleEngine.tests.cpp
         tests/unit/GameOverRule.tests.cpp
+        tests/unit/CaptureRule.tests.cpp
+        tests/unit/PromotionRule.tests.cpp
+        tests/unit/CollisionRule.tests.cpp
         tests/unit/PieceRules.tests.cpp
         tests/unit/BoardGeometry.tests.cpp
         tests/unit/SpriteLoader.tests.cpp
@@ -256,6 +265,9 @@ add_executable(chess_tests
         src/core/io/BoardPrinter.cpp
         src/core/engine/GameEngine.cpp
         src/core/engine/SnapshotSync.cpp
+        src/core/rules/CaptureRule.cpp
+        src/core/rules/CollisionRule.cpp
+        src/core/rules/PromotionRule.cpp
         src/core/rules/PieceRules.cpp
         src/core/texttests/ScriptRunner.cpp
         src/view/canvas/img.cpp
@@ -327,6 +339,9 @@ add_executable(chess_tests
         src/core/rules/Movement.cpp
         src/core/rules/RuleEngine.cpp
         src/core/rules/GameOverRule.cpp
+        src/core/rules/CaptureRule.cpp
+        src/core/rules/CollisionRule.cpp
+        src/core/rules/PromotionRule.cpp
         src/core/rules/PieceRules.cpp
         src/core/realtime/RealTimeArbiter.cpp
         src/core/io/BoardParser.cpp
