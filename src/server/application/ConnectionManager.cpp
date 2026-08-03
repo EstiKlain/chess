@@ -2,36 +2,6 @@
 
 #include <algorithm>
 
-#include "server/application/PlayerSessionRegistry.hpp"
-
-namespace {
-
-bool colorTaken(const std::unordered_map<std::string, ConnectionBinding>& connections, char color) {
-    for (const auto& [id, binding] : connections) {
-        if (binding.color == color) {
-            return true;
-        }
-    }
-    return false;
-}
-
-}  // namespace
-
-ConnectionOutcome ConnectionManager::onConnected(const std::string& connectionId, GameSession* session,
-                                                  const PlayerSessionRegistry& sessions) {
-    if (!colorTaken(connections_, 'w') && !sessions.colorReserved(session, 'w')) {
-        connections_[connectionId] = ConnectionBinding{session, 'w'};
-        bySession_[session].push_back(connectionId);
-        return ConnectionOutcome{true, 'w'};
-    }
-    if (!colorTaken(connections_, 'b') && !sessions.colorReserved(session, 'b')) {
-        connections_[connectionId] = ConnectionBinding{session, 'b'};
-        bySession_[session].push_back(connectionId);
-        return ConnectionOutcome{true, 'b'};
-    }
-    return ConnectionOutcome{false, ' '};
-}
-
 void ConnectionManager::bindKnown(const std::string& connectionId, GameSession* session, char color) {
     connections_[connectionId] = ConnectionBinding{session, color};
     bySession_[session].push_back(connectionId);

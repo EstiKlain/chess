@@ -6,23 +6,12 @@
 #include "server/protocol/Envelope.hpp"
 #include "server/protocol/dto/LoginDto.hpp"
 
-LoginUseCase::LoginUseCase(IIdentityStore& identities, ITransport& transport, ConnectionManager& connections,
-                            PlayerSessionRegistry& sessions, IUserRepository& users, IPasswordHasher& hasher)
-    : identities_(identities),
-      transport_(transport),
-      connections_(connections),
-      sessions_(sessions),
-      users_(users),
-      hasher_(hasher) {}
+LoginUseCase::LoginUseCase(IIdentityStore& identities, ITransport& transport, IUserRepository& users,
+                            IPasswordHasher& hasher)
+    : identities_(identities), transport_(transport), users_(users), hasher_(hasher) {}
 
 void LoginUseCase::handleLogin(const std::string& connectionId, const std::string& requestId,
                                 const nlohmann::json& payload) {
-    const auto binding = connections_.sessionFor(connectionId);
-    if (!binding.has_value()) {
-        protocol::sendError(transport_, connectionId, requestId, "TABLE_FULL", "this table already has two players");
-        return;
-    }
-
     LoginDto dto;
     try {
         dto = payload.get<LoginDto>();
@@ -59,8 +48,6 @@ void LoginUseCase::handleLogin(const std::string& connectionId, const std::strin
     }
 
     identities_.login(connectionId, dto.username);
-    connections_.setElo(connectionId, elo);
-    const std::string token = sessions_.registerNew(dto.username, binding->color, binding->session, connectionId);
     transport_.send(connectionId,
-                     protocol::envelope("LOGIN_OK", requestId, nlohmann::json{{"sessionToken", token}}));
+                     protocol::envelope("LOGIN_OK", requestId, nlohmann::json{{"username", dto.username}, {"elo", elo}}));
 }

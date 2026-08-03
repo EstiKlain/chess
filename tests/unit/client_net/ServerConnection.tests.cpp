@@ -173,21 +173,20 @@ TEST_CASE("ServerConnection: awaitInitialSnapshot returns once a STATE_UPDATE ha
     CHECK(snapshot.cols == 8);
 }
 
-TEST_CASE("ServerConnection: LOGIN_OK's sessionToken is stored and readable via sessionToken()") {
+TEST_CASE("ServerConnection: MATCH_FOUND's sessionToken is stored and readable via sessionToken()") {
     FakeServerLink link;
     ServerConnection connection(link);
-    link.onSend = [&](const std::string&) {
-        link.deliver(R"({"type":"LOGIN_OK","requestId":"1","payload":{"sessionToken":"abc123"}})");
-    };
 
-    connection.login("alice", "secret");
+    link.deliver(
+        R"({"type":"MATCH_FOUND","requestId":"p1","payload":{)"
+        R"("sessionToken":"abc123","color":"w","opponent":{"username":"bob","elo":1200}}})");
 
     const auto token = connection.sessionToken();
     REQUIRE(token.has_value());
     CHECK(*token == "abc123");
 }
 
-TEST_CASE("ServerConnection: sessionToken() is nullopt before any LOGIN_OK is received") {
+TEST_CASE("ServerConnection: sessionToken() is nullopt before any MATCH_FOUND is received") {
     FakeServerLink link;
     ServerConnection connection(link);
 
@@ -259,6 +258,53 @@ TEST_CASE("ServerConnection: myColor() reflects the most recent STATE_UPDATE's p
     CHECK(connection.myColor() == 'b');
 }
 
+TEST_CASE("ServerConnection: requestPlay sends PLAY and returns immediately, in Searching state") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+
+    connection.requestPlay();
+
+    REQUIRE(link.sent.size() == 1);
+    CHECK(link.sent[0].find("\"type\":\"PLAY\"") != std::string::npos);
+    CHECK(connection.matchmakingState() == MatchmakingState::Searching);
+}
+
+TEST_CASE("ServerConnection: a delivered MATCH_FOUND moves state to Matched and stores the opponent's name") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+    connection.requestPlay();
+
+    link.deliver(
+        R"({"type":"MATCH_FOUND","requestId":"p1","payload":{)"
+        R"("sessionToken":"tok-1","color":"b","opponent":{"username":"carol","elo":1300}}})");
+
+    CHECK(connection.matchmakingState() == MatchmakingState::Matched);
+    REQUIRE(connection.matchedOpponentName().has_value());
+    CHECK(*connection.matchedOpponentName() == "carol");
+}
+
+TEST_CASE("ServerConnection: a NO_MATCH_FOUND ERROR moves state to NoMatch") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+    connection.requestPlay();
+
+    link.deliver(
+        R"({"type":"ERROR","requestId":"p1","payload":{)"
+        R"("code":"NO_MATCH_FOUND","message":"no opponent found within the matchmaking window"}})");
+
+    CHECK(connection.matchmakingState() == MatchmakingState::NoMatch);
+}
+
+TEST_CASE("ServerConnection: an ALREADY_IN_GAME ERROR moves state to AlreadyInGame, not left stuck in Searching") {
+    FakeServerLink link;
+    ServerConnection connection(link);
+    connection.requestPlay();
+
+    link.deliver(R"({"type":"ERROR","requestId":"p1","payload":{"code":"ALREADY_IN_GAME","message":"already in a game"}})");
+
+    CHECK(connection.matchmakingState() == MatchmakingState::AlreadyInGame);
+}
+
 TEST_CASE("ServerConnection: reconnect() without ever having logged in returns Retry, sends nothing") {
     FakeServerLink link;
     ServerConnection connection(link);
@@ -275,7 +321,10 @@ TEST_CASE("ServerConnection: reconnect() succeeds when a matching STATE_UPDATE a
     link.onSend = [&](const std::string& rawJson) {
         if (rawJson.find("\"type\":\"LOGIN\"") != std::string::npos) {
             link.deliver(R"({"type":"LOGIN_OK","requestId":")" + requestIdOf(rawJson) +
-                         R"(","payload":{"sessionToken":"tok-1"}})");
+                         R"(","payload":{"username":"alice","elo":1200}})");
+            link.deliver(
+                R"({"type":"MATCH_FOUND","requestId":"","payload":{)"
+                R"("sessionToken":"tok-1","color":"w","opponent":{"username":"bob","elo":1200}}})");
         } else if (rawJson.find("\"type\":\"RECONNECT\"") != std::string::npos) {
             link.deliver(
                 R"({"type":"STATE_UPDATE","requestId":")" + requestIdOf(rawJson) +
@@ -298,7 +347,10 @@ TEST_CASE("ServerConnection: reconnect() returns Retry when the link fails to re
     link.onSend = [&](const std::string& rawJson) {
         if (rawJson.find("\"type\":\"LOGIN\"") != std::string::npos) {
             link.deliver(R"({"type":"LOGIN_OK","requestId":")" + requestIdOf(rawJson) +
-                         R"(","payload":{"sessionToken":"tok-1"}})");
+                         R"(","payload":{"username":"alice","elo":1200}})");
+            link.deliver(
+                R"({"type":"MATCH_FOUND","requestId":"","payload":{)"
+                R"("sessionToken":"tok-1","color":"w","opponent":{"username":"bob","elo":1200}}})");
         }
     };
     REQUIRE(connection.login("alice", "secret"));
@@ -320,7 +372,10 @@ TEST_CASE("ServerConnection: reconnect() returns Retry (not a permanent failure)
     link.onSend = [&](const std::string& rawJson) {
         if (rawJson.find("\"type\":\"LOGIN\"") != std::string::npos) {
             link.deliver(R"({"type":"LOGIN_OK","requestId":")" + requestIdOf(rawJson) +
-                         R"(","payload":{"sessionToken":"tok-1"}})");
+                         R"(","payload":{"username":"alice","elo":1200}})");
+            link.deliver(
+                R"({"type":"MATCH_FOUND","requestId":"","payload":{)"
+                R"("sessionToken":"tok-1","color":"w","opponent":{"username":"bob","elo":1200}}})");
         } else if (rawJson.find("\"type\":\"RECONNECT\"") != std::string::npos) {
             link.deliver(R"({"type":"ERROR","requestId":")" + requestIdOf(rawJson) +
                          R"(","payload":{"code":"SESSION_EXPIRED","message":"no game to reconnect to"}})");

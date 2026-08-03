@@ -97,8 +97,8 @@ TEST_CASE("ReconnectUseCase: a valid, still-disconnected token re-binds the conn
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
     ConnectionManager connections;
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
     const std::string token = sessions.registerNew("alice", 'w', &session, "white-conn");
     connections.onDisconnected("white-conn");
     sessions.markDisconnected("white-conn", 1000);
@@ -198,7 +198,7 @@ TEST_CASE("ReconnectUseCase: a token that is no longer disconnected (already rec
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
     ConnectionManager connections;
-    connections.onConnected("white-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
     const std::string token = sessions.registerNew("alice", 'w', &session, "white-conn");
     connections.onDisconnected("white-conn");
     sessions.markDisconnected("white-conn", 1000);

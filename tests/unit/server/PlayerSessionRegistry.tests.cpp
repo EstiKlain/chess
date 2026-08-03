@@ -117,21 +117,6 @@ TEST_CASE("PlayerSessionRegistry: reconnect called twice with the same token fai
     CHECK(*entry->connectionId == "conn-2");
 }
 
-TEST_CASE("PlayerSessionRegistry: colorReserved is true until remove") {
-    FakeTokenGenerator tokens;
-    PlayerSessionRegistry sessions(tokens);
-    GameSession* session = reinterpret_cast<GameSession*>(0x1);
-    const std::string token = sessions.registerNew("alice", 'w', session, "conn-1");
-    sessions.markDisconnected("conn-1", 5000);
-
-    CHECK(sessions.colorReserved(session, 'w'));
-    CHECK_FALSE(sessions.colorReserved(session, 'b'));
-
-    sessions.remove(token);
-
-    CHECK_FALSE(sessions.colorReserved(session, 'w'));
-}
-
 TEST_CASE("PlayerSessionRegistry: disconnectedEntries lists only currently-disconnected tokens") {
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);

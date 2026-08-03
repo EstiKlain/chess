@@ -5,6 +5,7 @@
 
 #include "shared/protocol/Envelope.hpp"
 #include "shared/protocol/dto/JumpDto.hpp"
+#include "shared/protocol/dto/MatchFoundDto.hpp"
 #include "shared/protocol/dto/MessageEnvelope.hpp"
 #include "shared/protocol/dto/MoveDto.hpp"
 #include "shared/protocol/mappers/GameSnapshotMapper.hpp"
@@ -72,6 +73,25 @@ char ServerConnection::myColor() const {
 
 std::optional<std::string> ServerConnection::sessionToken() const {
     return cache_.sessionToken();
+}
+
+void ServerConnection::requestPlay() {
+    {
+        std::lock_guard<std::mutex> lock(matchmakingMutex_);
+        matchmakingState_ = MatchmakingState::Searching;
+        matchedOpponentName_.reset();
+    }
+    send("PLAY", nextRequestId(), nlohmann::json::object());
+}
+
+MatchmakingState ServerConnection::matchmakingState() const {
+    std::lock_guard<std::mutex> lock(matchmakingMutex_);
+    return matchmakingState_;
+}
+
+std::optional<std::string> ServerConnection::matchedOpponentName() const {
+    std::lock_guard<std::mutex> lock(matchmakingMutex_);
+    return matchedOpponentName_;
 }
 
 std::optional<int> ServerConnection::latestDisconnectCountdown() const {
@@ -163,16 +183,17 @@ void ServerConnection::onMessage(const std::string& rawJson) {
         return;
     }
 
-    if (envelope.type == "LOGIN_OK") {
-        // Independent of the loginMutex_-guarded block below - this only
-        // ever touches the sessionToken cache, never nested with loginMutex_.
+    if (envelope.type == "MATCH_FOUND") {
         try {
-            if (envelope.payload.contains("sessionToken")) {
-                cache_.setSessionToken(envelope.payload.at("sessionToken").get<std::string>());
-            }
+            const MatchFoundDto dto = envelope.payload.get<MatchFoundDto>();
+            cache_.setSessionToken(dto.sessionToken);
+            std::lock_guard<std::mutex> lock(matchmakingMutex_);
+            matchedOpponentName_ = dto.opponent.username;
+            matchmakingState_ = MatchmakingState::Matched;
         } catch (const std::exception&) {
-            // Malformed sessionToken field - ignore, keep whatever token (if any) was already stored.
+            // Malformed payload - drop it; matchmakingState() stays Searching, same as no reply yet.
         }
+        return;
     }
 
     if (envelope.type == "LOGIN_OK" || envelope.type == "ERROR") {
@@ -192,9 +213,18 @@ void ServerConnection::onMessage(const std::string& rawJson) {
     }
 
     if (envelope.type == "ERROR") {
-        // Independent of the loginMutex_-guarded block above - a RECONNECT
-        // attempt's failure reply (e.g. SESSION_EXPIRED) is just another
-        // ERROR, correlated by requestId like the STATE_UPDATE success case.
+        const std::string code = envelope.payload.value("code", "");
+        if (code == "NO_MATCH_FOUND") {
+            std::lock_guard<std::mutex> lock(matchmakingMutex_);
+            matchmakingState_ = MatchmakingState::NoMatch;
+        } else if (code == "ALREADY_IN_GAME") {
+            std::lock_guard<std::mutex> lock(matchmakingMutex_);
+            matchmakingState_ = MatchmakingState::AlreadyInGame;
+        }
+
+        // Independent of the block above - a RECONNECT attempt's failure
+        // reply (e.g. SESSION_EXPIRED) is just another ERROR, correlated by
+        // requestId like the STATE_UPDATE success case.
         std::lock_guard<std::mutex> lock(reconnectReplyMutex_);
         if (!pendingReconnectRequestId_.empty() && pendingReconnectRequestId_ == envelope.requestId) {
             pendingReconnectRequestId_.clear();

@@ -67,8 +67,8 @@ TEST_CASE("EloUpdateUseCase: a king-capture ending updates both ratings exactly 
     ConnectionManager connections;
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
     sessions.registerNew("alice", 'w', &session, "white-conn");
     sessions.registerNew("bob", 'b', &session, "black-conn");
 
@@ -111,8 +111,8 @@ TEST_CASE("EloUpdateUseCase: a resignation also triggers an Elo update") {
     ConnectionManager connections;
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
     sessions.registerNew("alice", 'w', &session, "white-conn");
     sessions.registerNew("bob", 'b', &session, "black-conn");
 
@@ -138,8 +138,8 @@ TEST_CASE("EloUpdateUseCase: a rating-ineligible session never touches Elo, even
     ConnectionManager connections;
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
     sessions.registerNew("alice", 'w', &session, "white-conn");
     sessions.registerNew("bob", 'b', &session, "black-conn");
 

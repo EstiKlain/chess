@@ -86,8 +86,8 @@ TEST_CASE("MakeMoveUseCase: a legal MOVE publishes MoveApplied and sends STATE_U
     ConnectionManager connections;
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
 
     FakeEventBus bus;
     FakeTransport transport;
@@ -130,8 +130,8 @@ TEST_CASE("MakeMoveUseCase: an illegal MOVE sends ERROR/ILLEGAL_MOVE only to the
     ConnectionManager connections;
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
 
     FakeEventBus bus;
     FakeTransport transport;
@@ -156,8 +156,8 @@ TEST_CASE("MakeMoveUseCase: a MOVE on the opponent's piece is rejected as not_yo
     ConnectionManager connections;
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
 
     FakeEventBus bus;
     FakeTransport transport;
@@ -184,8 +184,8 @@ TEST_CASE("MakeMoveUseCase: a JUMP on the opponent's piece is rejected as not_yo
     ConnectionManager connections;
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
 
     FakeEventBus bus;
     FakeTransport transport;
@@ -208,8 +208,8 @@ TEST_CASE("MakeMoveUseCase: JUMP uses GameEngine::requestJump's single-position 
     ConnectionManager connections;
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
 
     FakeEventBus bus;
     FakeTransport transport;
@@ -223,4 +223,19 @@ TEST_CASE("MakeMoveUseCase: JUMP uses GameEngine::requestJump's single-position 
     REQUIRE(bus.published.size() == 1);
     CHECK(bus.published[0].type == "MoveApplied");
     REQUIRE(transport.sent.size() == 2);
+}
+
+TEST_CASE("MakeMoveUseCase: MOVE from a connection not bound to any game gets NOT_IN_GAME") {
+    ConnectionManager connections;
+    FakeEventBus bus;
+    FakeTransport transport;
+    FakeIdentityStore identities;
+    identities.login("conn-1", "Alice");
+    MakeMoveUseCase useCase(bus, transport, connections, identities);
+
+    useCase.handleMove("conn-1", "r1", nlohmann::json{{"fromRow", 0}, {"fromCol", 0}, {"toRow", 0}, {"toCol", 1}});
+
+    CHECK(bus.published.empty());
+    REQUIRE(transport.sent.size() == 1);
+    CHECK(transport.sent[0].second.find("NOT_IN_GAME") != std::string::npos);
 }

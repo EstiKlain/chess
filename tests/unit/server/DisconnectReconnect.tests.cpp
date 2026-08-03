@@ -88,8 +88,8 @@ TEST_CASE("DisconnectUseCase: DISCONNECT_COUNTDOWN is sent to the opponent only 
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
     ConnectionManager connections;
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
     const std::string token = sessions.registerNew("alice", 'w', &session, "white-conn");
 
     FakeTransport transport;
@@ -124,8 +124,8 @@ TEST_CASE("DisconnectUseCase: reconnecting before the window elapses cancels the
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
     ConnectionManager connections;
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
     const std::string token = sessions.registerNew("alice", 'w', &session, "white-conn");
 
     FakeTransport transport;
@@ -152,8 +152,8 @@ TEST_CASE("DisconnectUseCase: no reconnect within the window resigns the seat au
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
     ConnectionManager connections;
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
     const std::string token = sessions.registerNew("alice", 'w', &session, "white-conn");
 
     FakeTransport transport;

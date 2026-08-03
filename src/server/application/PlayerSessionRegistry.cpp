@@ -39,15 +39,6 @@ bool PlayerSessionRegistry::reconnect(const std::string& token, const std::strin
 
 void PlayerSessionRegistry::remove(const std::string& token) { byToken_.erase(token); }
 
-bool PlayerSessionRegistry::colorReserved(const GameSession* session, char color) const {
-    for (const auto& [token, entry] : byToken_) {
-        if (entry.session == session && entry.color == color) {
-            return true;
-        }
-    }
-    return false;
-}
-
 std::vector<std::pair<std::string, PlayerSessionEntry>> PlayerSessionRegistry::disconnectedEntries() const {
     std::vector<std::pair<std::string, PlayerSessionEntry>> result;
     for (const auto& [token, entry] : byToken_) {

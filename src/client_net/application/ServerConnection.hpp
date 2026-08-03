@@ -41,6 +41,13 @@
 /// ever ends a reconnect episode without Success.
 enum class ReconnectOutcome { Success, Retry };
 
+// State of the current PLAY request, if any. Not touched by login() itself -
+// only requestPlay() moves it out of Idle. AlreadyInGame is terminal (unlike
+// NoMatch, retrying PLAY would just get the same answer) - it means this
+// account has a live game bound to a different connectionId, e.g. the
+// process was restarted while a match was still running elsewhere.
+enum class MatchmakingState { Idle, Searching, Matched, NoMatch, AlreadyInGame };
+
 class ServerConnection {
 public:
     explicit ServerConnection(IServerLink& link);
@@ -68,8 +75,16 @@ public:
     /// This connection's own assigned color ('w'/'b'), learned from the "role" field of the most recent STATE_UPDATE. '\0' until the first STATE_UPDATE arrives after login.
     char myColor() const;
 
-    /// The sessionToken received in LOGIN_OK's payload (Server-Iteration 5), if login has succeeded - nullopt otherwise. Not yet consumed by anything in this class; stored so a future RECONNECT flow doesn't need to touch LOGIN_OK handling again.
+    /// The sessionToken received in MATCH_FOUND's payload, once a PLAY has matched - nullopt before that (there is no seat to reconnect to before a match exists).
     std::optional<std::string> sessionToken() const;
+
+    /// Sends PLAY and returns immediately - never blocks, so the caller can render "Searching..." while waiting. Resolves via matchmakingState(): Matched on MATCH_FOUND, NoMatch on a NO_MATCH_FOUND ERROR.
+    void requestPlay();
+
+    MatchmakingState matchmakingState() const;
+
+    /// The opponent's username from the most recent MATCH_FOUND, if matchmakingState() is Matched.
+    std::optional<std::string> matchedOpponentName() const;
 
     /// Seconds remaining before the opponent auto-resigns, per the most recent DISCONNECT_COUNTDOWN - nullopt when no countdown is in effect (never started, cancelled by a successful reconnect, or the game is already over).
     std::optional<int> latestDisconnectCountdown() const;
@@ -116,4 +131,8 @@ private:
     // requestJump) and AutoReconnector's background worker thread (via
     // reconnect()) - a plain int here would be a data race.
     std::atomic<int> requestIdCounter_{0};
+
+    mutable std::mutex matchmakingMutex_;
+    MatchmakingState matchmakingState_ = MatchmakingState::Idle;
+    std::optional<std::string> matchedOpponentName_;
 };

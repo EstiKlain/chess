@@ -180,6 +180,7 @@ add_custom_command(TARGET chess_game POST_BUILD
 
 add_executable(chess_gui
     src/app/main_gui.cpp
+    src/app/MatchmakingConsole.cpp
     src/client_net/application/ServerConnection.cpp
     src/client_net/application/AutoReconnector.cpp
     src/client_net/application/SnapshotCache.cpp

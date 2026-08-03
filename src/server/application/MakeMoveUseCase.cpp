@@ -69,10 +69,15 @@ std::optional<ConnectionBinding> MakeMoveUseCase::lookupBoundSession(const std::
                                                                      const std::string &requestId)
 {
     const auto binding = connections_.sessionFor(connectionId);
-    if (!binding.has_value() || binding->session == nullptr)
+    if (!binding.has_value())
+    {
+        protocol::sendError(transport_, connectionId, requestId, "NOT_IN_GAME", "not currently in a game");
+        return std::nullopt;
+    }
+    if (binding->session == nullptr)
     {
         protocol::sendError(transport_, connectionId, requestId, "INTERNAL_ERROR",
-                            "connection is not bound to a game session");
+                            "connection is bound but its session pointer is null");
         return std::nullopt;
     }
     return binding;

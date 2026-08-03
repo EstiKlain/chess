@@ -13,15 +13,18 @@
 #include "model/Board.hpp"
 #include "rules/PieceRules.hpp"
 #include "server/application/AuthGuard.hpp"
+#include "server/application/ConnectionLifecycleUseCase.hpp"
 #include "server/application/ConnectionManager.hpp"
 #include "server/application/DisconnectUseCase.hpp"
 #include "server/application/EloUpdateUseCase.hpp"
-#include "server/application/GameSession.hpp"
+#include "server/application/GameSessionStore.hpp"
 #include "server/application/LoginUseCase.hpp"
 #include "server/application/MakeMoveUseCase.hpp"
+#include "server/application/MatchStarter.hpp"
+#include "server/application/PlayRequestUseCase.hpp"
 #include "server/application/PlayerSessionRegistry.hpp"
 #include "server/application/ReconnectUseCase.hpp"
-#include "server/application/StateFanOut.hpp"
+#include "server/application/ServerTick.hpp"
 #include "server/config.hpp"
 #include "server/domain_ports/IClock.hpp"
 #include "server/domain_ports/IEventBus.hpp"
@@ -32,6 +35,7 @@
 #include "server/domain_ports/ITransport.hpp"
 #include "server/domain_ports/IUserRepository.hpp"
 #include "server/infrastructure/bus/InProcessEventBus.hpp"
+#include "server/infrastructure/matchmaking/InMemoryMatchmakingQueue.hpp"
 #include "server/infrastructure/persistence/InMemoryIdentityStore.hpp"
 #include "server/infrastructure/persistence/InMemoryUserRepository.hpp"
 #include "server/infrastructure/security/SodiumPasswordHasher.hpp"
@@ -60,8 +64,8 @@ std::string readFile(const std::string& path) {
 }
 
 // Loads the same opening position chess_gui uses (same parser, same asset
-// file) - one shared GameSession is enough until Iteration 7 (matchmaking)
-// introduces more than one game at a time.
+// file). Passed to GameSessionStore as a factory - called once per match, so
+// file IO never happens on a request-handling path.
 GameEngine loadInitialEngine() {
     const std::string boardPath = std::string(PROJECT_ROOT) + "/assets/opening_board.txt";
     const Sections sections = parseSections(readFile(boardPath));
@@ -117,52 +121,49 @@ int main() {
     // AuthGuard sits between the real bus and MessageRouter: it enforces
     // "LOGIN before anything else" without MessageRouter itself ever
     // learning that authentication exists. MakeMoveUseCase/LoginUseCase and
-    // the PING/MOVE/JUMP/LOGIN/RECONNECT subscriptions below are wired to
-    // the raw `bus`, not `authGuard` - they only ever run once a request has
-    // already passed the gate, so wiring them past it again would add nothing.
+    // the PING/MOVE/JUMP/LOGIN/RECONNECT/PLAY subscriptions below are wired
+    // to the raw `bus`, not `authGuard` - they only ever run once a request
+    // has already passed the gate, so wiring them past it again would add
+    // nothing.
     AuthGuard authGuard(bus, identities, transport);
     MessageRouter router(authGuard, transport);
 
-    GameSession session(loadInitialEngine(), /*ratingEligible=*/true);
+    // Owns every GameSession for the process's lifetime - PLAY creates a new
+    // one per match instead of the single hardcoded session every prior
+    // iteration ran against.
+    GameSessionStore sessionStore(loadInitialEngine);
+    InMemoryMatchmakingQueue matchQueue;
+
     MakeMoveUseCase makeMoveUseCase(bus, transport, connections, identities);
-    LoginUseCase loginUseCase(identities, transport, connections, sessions, users, passwordHasher);
+    LoginUseCase loginUseCase(identities, transport, users, passwordHasher);
     DisconnectUseCase disconnectUseCase(sessions, connections, transport, clock);
     ReconnectUseCase reconnectUseCase(sessions, connections, identities, transport, users);
     EloUpdateUseCase eloUpdateUseCase(users, sessions, connections);
 
-    // Wiring #1: transport lifecycle -> connection registry. Rejection of a
-    // 3rd connection happens HERE, at connect time, not on the first MOVE -
-    // there is no Play/Room yet to give a 3rd visitor anywhere else to go.
-    // A color reserved by `sessions` (a disconnected player still within
-    // their reconnect window) is treated as taken too, per onConnected's
-    // Iteration-5 seat-reservation check - note this means a client sending
-    // RECONNECT on a brand-new socket may see TABLE_FULL fire on this same
-    // socket's open, moments before its RECONNECT message succeeds
-    // (RECONNECT bypasses onConnected entirely via ConnectionManager::
-    // bindKnown) - see docs/kungfu_chess_server_plan (1).md's Iteration 5
-    // section for the client-side implication.
+    // The only place GameSessionStore is actually used - PlayRequestUseCase
+    // itself never includes GameSessionStore.hpp, only this callback does
+    // (see PlayRequestUseCase::MatchStartHandler's own doc comment).
+    PlayRequestUseCase playRequestUseCase(
+        matchQueue, connections, sessions, identities, users, transport, clock,
+        [&](const WaitingPlayer& waiting, const WaitingPlayer& joining) {
+            MatchStarter::start(sessionStore, connections, sessions, transport, waiting, joining);
+        });
+
+    ConnectionLifecycleUseCase connectionLifecycle(connections, identities, disconnectUseCase, playRequestUseCase);
+    ServerTick serverTick(sessionStore, disconnectUseCase, eloUpdateUseCase, connections, identities, transport,
+                           clock);
+
+    // Wiring #1: transport lifecycle. A freshly opened connection starts
+    // unbound - no session, not queued - until it LOGINs and sends PLAY (or
+    // RECONNECTs with a valid token). There is no "table" to reject a 3rd
+    // visitor from anymore; TABLE_FULL is retired.
     transport.setOnOpen([&](const std::string& id) {
-        const ConnectionOutcome outcome = connections.onConnected(id, &session, sessions);
-        if (!outcome.accepted) {
-            transport.send(id, protocol::errorEnvelope("TABLE_FULL", "this table already has two players"));
-            std::cout << "[server] connection rejected (table full): " << id << "\n";
-            return;
-        }
-        std::cout << "[server] connection opened: " << id << " as '" << outcome.color
-                  << "' (total: " << connections.connectionCount() << ")\n";
+        std::cout << "[server] connection opened: " << id << "\n";
     });
 
     transport.setOnClose([&](const std::string& id) {
-        connections.onDisconnected(id);
-        // Three separate calls, deliberately not merged into one method:
-        // each collaborator owns exactly one concern (seat/color,
-        // identity, reconnect-window bookkeeping), and fanning out
-        // disconnect cleanup across them is exactly what a composition
-        // root is for.
-        identities.logout(id);
-        disconnectUseCase.onDisconnected(id);
-        std::cout << "[server] connection closed: " << id << " (total: "
-                  << connections.connectionCount() << ")\n";
+        connectionLifecycle.onDisconnected(id);
+        std::cout << "[server] connection closed: " << id << "\n";
     });
 
     // Wiring #2: raw bytes in -> MessageRouter (parses, publishes on the bus,
@@ -171,18 +172,17 @@ int main() {
         router.handleRawMessage(id, rawJson);
     });
 
-    // Wiring #3: business logic lives in the use-case, not in these lambdas
-    // (the Iteration 1 note this fixes: PONG's envelope used to be built
-    // inline here, by hand - now it shares protocol::envelope() with every
-    // other outgoing message type, MOVE/JUMP delegate to MakeMoveUseCase in
-    // one line). PONG itself still doesn't warrant its own use-case class -
-    // there is no domain/core logic behind it at all, just an envelope.
+    // Wiring #3: business logic lives in the use-case, not in these lambdas.
     bus.subscribe("PING", [&](const BusEvent& event) {
         transport.send(event.connectionId, protocol::envelope("PONG", nlohmann::json::object()));
     });
 
     bus.subscribe("LOGIN", [&](const BusEvent& event) {
         loginUseCase.handleLogin(event.connectionId, event.requestId, event.payload);
+    });
+
+    bus.subscribe("PLAY", [&](const BusEvent& event) {
+        playRequestUseCase.handlePlay(event.connectionId, event.requestId, event.payload);
     });
 
     bus.subscribe("MOVE", [&](const BusEvent& event) {
@@ -195,21 +195,16 @@ int main() {
         reconnectUseCase.handleReconnect(event.connectionId, event.requestId, event.payload);
     });
 
-    // Broadcasts every tick, not just on MOVE/JUMP, so animation and clocks
-    // advance continuously client-side (see Iteration 3.5 notes in
-    // CLAUDE.md). disconnectUseCase.tick() runs AFTER session.wait() so a
-    // same-tick king-capture wins over a same-tick disconnect-resign, never
-    // the reverse - see DisconnectUseCase.hpp's ordering-guarantee comment.
+    // Two independent periodic jobs, not one: ServerTick's game-session loop
+    // has real ordering invariants (see its own header comment).
+    // PlayRequestUseCase's matchmaking timeout has no dependency on any of
+    // that - a queued player isn't in a GameSession yet - so it gets its own
+    // registration instead of being folded into ServerTick.
     AsioScheduler scheduler(ioContext);
-    scheduler.schedulePeriodic(server_config::kTickIntervalMs, [&](long deltaMs) {
-        session.wait(deltaMs);
-        disconnectUseCase.tick(clock.nowMs());
-        // After disconnectUseCase.tick() so a same-tick disconnect-timeout
-        // resignation is visible too - see EloUpdateUseCase's own header
-        // comment for why this is a tick-loop call, not a bus subscriber.
-        eloUpdateUseCase.checkAndApply(session);
-        StateFanOut::broadcast(session, connections, identities, transport, "", "");
-    });
+    scheduler.schedulePeriodic(server_config::kTickIntervalMs,
+                                [&](long deltaMs) { serverTick.tick(deltaMs); });
+    scheduler.schedulePeriodic(server_config::kTickIntervalMs,
+                                [&](long) { playRequestUseCase.tick(clock.nowMs()); });
 
     std::cout << "[server] listening on port " << server_config::kPort << "...\n";
     transport.run(server_config::kPort);  // Blocks until transport.stop() is called.

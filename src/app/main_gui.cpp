@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "app/MatchmakingConsole.hpp"
 #include "client_net/application/AutoReconnector.hpp"
 #include "client_net/application/ServerConnection.hpp"
 #include "client_net/infrastructure/ClientLogger.hpp"
@@ -119,11 +120,17 @@ int main()
         return 1;
     }
 
+    if (!waitForMatchInteractively(connection))
+    {
+        std::cout << "Exiting.\n";
+        return 0;
+    }
+
     // Blocks briefly - the server sends a STATE_UPDATE immediately after a
-    // successful login (StateFanOut::broadcast), so this is a short, bounded
-    // wait, not an indefinite hang. rows/cols come from this real snapshot,
-    // not a hardcoded constant - the board opens at whatever size the
-    // server actually says.
+    // successful match (ServerTick's unconditional per-tick broadcast), so
+    // this is a short, bounded wait, not an indefinite hang. rows/cols come
+    // from this real snapshot, not a hardcoded constant - the board opens
+    // at whatever size the server actually says.
     const GameSnapshot initial = connection.awaitInitialSnapshot();
 
     // Must be declared AFTER `connection` (and everything connection itself

@@ -89,7 +89,10 @@ TEST_CASE("AutoReconnector: a close after login triggers retries until a matchin
     link.onSend = [&](const std::string& rawJson) {
         if (rawJson.find("\"type\":\"LOGIN\"") != std::string::npos) {
             link.deliver(R"({"type":"LOGIN_OK","requestId":")" + requestIdOf(rawJson) +
-                         R"(","payload":{"sessionToken":"tok-1"}})");
+                         R"(","payload":{"username":"alice","elo":1200}})");
+            link.deliver(
+                R"({"type":"MATCH_FOUND","requestId":"","payload":{)"
+                R"("sessionToken":"tok-1","color":"w","opponent":{"username":"bob","elo":1200}}})");
         } else if (rawJson.find("\"type\":\"RECONNECT\"") != std::string::npos) {
             link.deliver(
                 R"({"type":"STATE_UPDATE","requestId":")" + requestIdOf(rawJson) +
@@ -111,7 +114,10 @@ TEST_CASE("AutoReconnector: repeated SESSION_EXPIRED replies keep retrying, not 
     link.onSend = [&](const std::string& rawJson) {
         if (rawJson.find("\"type\":\"LOGIN\"") != std::string::npos) {
             link.deliver(R"({"type":"LOGIN_OK","requestId":")" + requestIdOf(rawJson) +
-                         R"(","payload":{"sessionToken":"tok-1"}})");
+                         R"(","payload":{"username":"alice","elo":1200}})");
+            link.deliver(
+                R"({"type":"MATCH_FOUND","requestId":"","payload":{)"
+                R"("sessionToken":"tok-1","color":"w","opponent":{"username":"bob","elo":1200}}})");
         } else if (rawJson.find("\"type\":\"RECONNECT\"") != std::string::npos) {
             link.deliver(R"({"type":"ERROR","requestId":")" + requestIdOf(rawJson) +
                          R"(","payload":{"code":"SESSION_EXPIRED","message":"no game to reconnect to"}})");
