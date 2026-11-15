@@ -2,6 +2,8 @@
 
 #include <utility>
 
+#include "shared/protocol/LogRedaction.hpp"
+
 LoggingTransport::LoggingTransport(ITransport& real, ILogger& logger) : real_(real), logger_(logger) {}
 
 void LoggingTransport::send(const std::string& connectionId, const std::string& rawJson) {
@@ -24,7 +26,7 @@ void LoggingTransport::setOnClose(OnCloseHandler handler) {
 
 void LoggingTransport::setOnMessage(OnMessageHandler handler) {
     real_.setOnMessage([this, handler = std::move(handler)](const std::string& connectionId, const std::string& rawJson) {
-        logger_.log(LogDirection::Received, connectionId, rawJson);
+        logger_.log(LogDirection::Received, connectionId, protocol::redactForLog(rawJson));
         handler(connectionId, rawJson);
     });
 }

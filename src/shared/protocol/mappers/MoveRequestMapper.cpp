@@ -2,8 +2,8 @@
 
 namespace MoveRequestMapper {
 
-MoveRequest toDomain(const MoveDto& dto) {
-    return MoveRequest{Position{dto.fromRow, dto.fromCol}, Position{dto.toRow, dto.toCol}};
+MoveRequest toDomain(const MoveDto& dto, char requesterColor) {
+    return MoveRequest{Position{dto.fromRow, dto.fromCol}, Position{dto.toRow, dto.toCol}, requesterColor};
 }
 
 MoveDto toDto(const MoveRequest& request) {

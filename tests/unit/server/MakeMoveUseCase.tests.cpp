@@ -86,8 +86,8 @@ TEST_CASE("MakeMoveUseCase: a legal MOVE publishes MoveApplied and sends STATE_U
     ConnectionManager connections;
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
 
     FakeEventBus bus;
     FakeTransport transport;
@@ -130,8 +130,8 @@ TEST_CASE("MakeMoveUseCase: an illegal MOVE sends ERROR/ILLEGAL_MOVE only to the
     ConnectionManager connections;
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
 
     FakeEventBus bus;
     FakeTransport transport;
@@ -151,13 +151,65 @@ TEST_CASE("MakeMoveUseCase: an illegal MOVE sends ERROR/ILLEGAL_MOVE only to the
     CHECK(transport.sent[0].second.find("\"requestId\":\"r2\"") != std::string::npos);
 }
 
+TEST_CASE("MakeMoveUseCase: a MOVE on the opponent's piece is rejected as not_your_piece") {
+    GameSession session(GameEngine(makeBoard({{"wR", ".", ".", "."}, {"bR", ".", ".", "."}}), registry));
+    ConnectionManager connections;
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
+
+    FakeEventBus bus;
+    FakeTransport transport;
+    FakeIdentityStore identities;
+    identities.login("white-conn", "Alice");
+    identities.login("black-conn", "Bob");
+    MakeMoveUseCase useCase(bus, transport, connections, identities);
+
+    // white-conn tries to move the black rook at (1,0) - the connection's
+    // own bound color ('w') comes from ConnectionBinding, never from the
+    // payload, so this must be rejected regardless of what the client sends.
+    useCase.handleMove("white-conn", "r4",
+                        nlohmann::json{{"fromRow", 1}, {"fromCol", 0}, {"toRow", 1}, {"toCol", 3}});
+
+    CHECK(bus.published.empty());
+    REQUIRE(transport.sent.size() == 1);
+    CHECK(transport.sent[0].first == "white-conn");
+    CHECK(transport.sent[0].second.find("ILLEGAL_MOVE") != std::string::npos);
+    CHECK(transport.sent[0].second.find("not_your_piece") != std::string::npos);
+}
+
+TEST_CASE("MakeMoveUseCase: a JUMP on the opponent's piece is rejected as not_your_piece") {
+    GameSession session(GameEngine(makeBoard({{"wR", "bR", ".", "."}}), registry));
+    ConnectionManager connections;
+    FakeTokenGenerator tokens;
+    PlayerSessionRegistry sessions(tokens);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
+
+    FakeEventBus bus;
+    FakeTransport transport;
+    FakeIdentityStore identities;
+    identities.login("white-conn", "Alice");
+    identities.login("black-conn", "Bob");
+    MakeMoveUseCase useCase(bus, transport, connections, identities);
+
+    useCase.handleJump("white-conn", "r5", nlohmann::json{{"row", 0}, {"col", 1}});
+
+    CHECK(bus.published.empty());
+    REQUIRE(transport.sent.size() == 1);
+    CHECK(transport.sent[0].first == "white-conn");
+    CHECK(transport.sent[0].second.find("ILLEGAL_MOVE") != std::string::npos);
+    CHECK(transport.sent[0].second.find("not_your_piece") != std::string::npos);
+}
+
 TEST_CASE("MakeMoveUseCase: JUMP uses GameEngine::requestJump's single-position shape, not MOVE's") {
     GameSession session(GameEngine(makeBoard({{"wR", ".", ".", "."}}), registry));
     ConnectionManager connections;
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
 
     FakeEventBus bus;
     FakeTransport transport;
@@ -171,4 +223,19 @@ TEST_CASE("MakeMoveUseCase: JUMP uses GameEngine::requestJump's single-position 
     REQUIRE(bus.published.size() == 1);
     CHECK(bus.published[0].type == "MoveApplied");
     REQUIRE(transport.sent.size() == 2);
+}
+
+TEST_CASE("MakeMoveUseCase: MOVE from a connection not bound to any game gets NOT_IN_GAME") {
+    ConnectionManager connections;
+    FakeEventBus bus;
+    FakeTransport transport;
+    FakeIdentityStore identities;
+    identities.login("conn-1", "Alice");
+    MakeMoveUseCase useCase(bus, transport, connections, identities);
+
+    useCase.handleMove("conn-1", "r1", nlohmann::json{{"fromRow", 0}, {"fromCol", 0}, {"toRow", 0}, {"toCol", 1}});
+
+    CHECK(bus.published.empty());
+    REQUIRE(transport.sent.size() == 1);
+    CHECK(transport.sent[0].second.find("NOT_IN_GAME") != std::string::npos);
 }

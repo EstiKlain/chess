@@ -52,7 +52,7 @@ void Controller::handleClick(int x, int y)
         return;
     }
 
-    if (clicked != nullptr)
+    if (clicked != nullptr && (localColor_ == '\0' || clicked->color == localColor_))
     {
         selection_ = {true, row, col};
     }
@@ -62,6 +62,10 @@ void Controller::handleJumpClick(int x, int y)
 {
     const auto position = mapToCell(x, y);
     if (!position.has_value())
+        return;
+
+    const Piece *clicked = board_.pieceAt(*position);
+    if (localColor_ != '\0' && clicked != nullptr && clicked->color != localColor_)
         return;
 
     if (requestJumpCallback_)
@@ -77,7 +81,9 @@ void Controller::requestMove(const MoveRequest &request)
 
     if (requestMoveCallback_)
     {
-        requestMoveCallback_(request);
+        MoveRequest withColor = request;
+        withColor.requesterColor = localColor_;
+        requestMoveCallback_(withColor);
     }
 
     if (selection_.active)

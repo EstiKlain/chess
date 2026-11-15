@@ -15,7 +15,8 @@ namespace Hud {
 
 void drawPlayerNames(ICanvas& canvas, const std::vector<PlayerName>& players) {
     for (std::size_t i = 0; i < players.size(); ++i) {
-        const std::string line = players[i].color + ": " + players[i].name;
+        const std::string line =
+            players[i].color + ": " + players[i].name + " (" + std::to_string(players[i].elo) + ")";
         canvas.drawText(line, kMarginX, kFirstLineY + static_cast<int>(i) * kLineHeight, kTextColor);
     }
 }

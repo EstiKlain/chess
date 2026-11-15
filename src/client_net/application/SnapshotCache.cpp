@@ -2,11 +2,12 @@
 
 #include <utility>
 
-void SnapshotCache::updateFromStateUpdate(GameSnapshot snapshot, std::vector<PlayerDto> players) {
+void SnapshotCache::updateFromStateUpdate(GameSnapshot snapshot, std::vector<PlayerDto> players, char role) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         snapshot_ = std::move(snapshot);
         players_ = std::move(players);
+        myColor_ = role;
         hasSnapshot_ = true;
         if (snapshot_.gameOver) {
             disconnectCountdownSeconds_ = std::nullopt;
@@ -29,6 +30,11 @@ GameSnapshot SnapshotCache::latestSnapshot() const {
 std::vector<PlayerDto> SnapshotCache::latestPlayers() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return players_;
+}
+
+char SnapshotCache::myColor() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return myColor_;
 }
 
 void SnapshotCache::setSessionToken(std::string token) {

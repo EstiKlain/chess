@@ -39,20 +39,31 @@ bool PlayerSessionRegistry::reconnect(const std::string& token, const std::strin
 
 void PlayerSessionRegistry::remove(const std::string& token) { byToken_.erase(token); }
 
-bool PlayerSessionRegistry::colorReserved(const GameSession* session, char color) const {
-    for (const auto& [token, entry] : byToken_) {
-        if (entry.session == session && entry.color == color) {
-            return true;
-        }
-    }
-    return false;
-}
-
 std::vector<std::pair<std::string, PlayerSessionEntry>> PlayerSessionRegistry::disconnectedEntries() const {
     std::vector<std::pair<std::string, PlayerSessionEntry>> result;
     for (const auto& [token, entry] : byToken_) {
         if (!entry.connectionId.has_value()) {
             result.emplace_back(token, entry);
+        }
+    }
+    return result;
+}
+
+std::vector<std::pair<std::string, char>> PlayerSessionRegistry::usernamesFor(const GameSession* session) const {
+    std::vector<std::pair<std::string, char>> result;
+    for (const auto& [token, entry] : byToken_) {
+        if (entry.session == session) {
+            result.emplace_back(entry.username, entry.color);
+        }
+    }
+    return result;
+}
+
+std::vector<PlayerSessionEntry> PlayerSessionRegistry::entriesForUsername(const std::string& username) const {
+    std::vector<PlayerSessionEntry> result;
+    for (const auto& [token, entry] : byToken_) {
+        if (entry.username == username) {
+            result.push_back(entry);
         }
     }
     return result;

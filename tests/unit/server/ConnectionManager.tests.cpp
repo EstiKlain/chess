@@ -1,7 +1,6 @@
 #include "doctest.h"
 
 #include "server/application/ConnectionManager.hpp"
-#include "server/application/PlayerSessionRegistry.hpp"
 
 // GameSession is only ever used here as an opaque pointer/key - forward
 // declared in ConnectionManager.hpp, and ConnectionManager never dereferences
@@ -9,69 +8,12 @@
 // for these tests.
 class GameSession;
 
-namespace {
-class FakeTokenGenerator : public ITokenGenerator {
-public:
-    std::string generate() override { return "token-" + std::to_string(++counter_); }
-
-private:
-    int counter_ = 0;
-};
-}  // namespace
-
-TEST_CASE("ConnectionManager: first connection gets 'w', second gets 'b'") {
-    ConnectionManager connections;
-    FakeTokenGenerator tokens;
-    PlayerSessionRegistry sessions(tokens);
-    GameSession* session = reinterpret_cast<GameSession*>(0x1);
-
-    const ConnectionOutcome first = connections.onConnected("conn-1", session, sessions);
-    const ConnectionOutcome second = connections.onConnected("conn-2", session, sessions);
-
-    CHECK(first.accepted);
-    CHECK(first.color == 'w');
-    CHECK(second.accepted);
-    CHECK(second.color == 'b');
-    CHECK(connections.connectionCount() == 2);
-}
-
-TEST_CASE("ConnectionManager: a third connection is rejected once both colors are taken") {
-    ConnectionManager connections;
-    FakeTokenGenerator tokens;
-    PlayerSessionRegistry sessions(tokens);
-    GameSession* session = reinterpret_cast<GameSession*>(0x1);
-
-    connections.onConnected("conn-1", session, sessions);
-    connections.onConnected("conn-2", session, sessions);
-    const ConnectionOutcome third = connections.onConnected("conn-3", session, sessions);
-
-    CHECK_FALSE(third.accepted);
-    CHECK(connections.connectionCount() == 2);
-}
-
-TEST_CASE("ConnectionManager: disconnecting frees a color for the next connection") {
-    ConnectionManager connections;
-    FakeTokenGenerator tokens;
-    PlayerSessionRegistry sessions(tokens);
-    GameSession* session = reinterpret_cast<GameSession*>(0x1);
-
-    connections.onConnected("conn-1", session, sessions);
-    connections.onConnected("conn-2", session, sessions);
-    connections.onDisconnected("conn-1");
-    const ConnectionOutcome rejoin = connections.onConnected("conn-3", session, sessions);
-
-    CHECK(rejoin.accepted);
-    CHECK(rejoin.color == 'w');
-}
-
 TEST_CASE("ConnectionManager: sessionFor and connectionsFor reflect the bindings made") {
     ConnectionManager connections;
-    FakeTokenGenerator tokens;
-    PlayerSessionRegistry sessions(tokens);
     GameSession* session = reinterpret_cast<GameSession*>(0x1);
 
-    connections.onConnected("conn-1", session, sessions);
-    connections.onConnected("conn-2", session, sessions);
+    connections.bindKnown("conn-1", session, 'w');
+    connections.bindKnown("conn-2", session, 'b');
 
     const auto binding = connections.sessionFor("conn-1");
     REQUIRE(binding.has_value());
@@ -91,24 +33,58 @@ TEST_CASE("ConnectionManager: sessionFor and connectionsFor reflect the bindings
     }
 }
 
-TEST_CASE("ConnectionManager: a color reserved by PlayerSessionRegistry is not handed to a new connection") {
-    // A disconnected player still within their reconnect window must keep
-    // their seat - a brand-new (non-reconnect) connection attempting to
-    // grab that color must be rejected, exactly like TABLE_FULL for an
-    // ordinary third player.
+TEST_CASE("ConnectionManager: setElo updates the live Elo cache on an already-bound connection") {
     ConnectionManager connections;
-    FakeTokenGenerator tokens;
-    PlayerSessionRegistry sessions(tokens);
     GameSession* session = reinterpret_cast<GameSession*>(0x1);
+    connections.bindKnown("conn-1", session, 'w');
 
-    connections.onConnected("conn-1", session, sessions);  // 'w', live
-    const std::string token = sessions.registerNew("bob", 'b', session, "conn-2");
-    connections.onDisconnected("conn-2");
-    sessions.markDisconnected("conn-2", 1000);  // 'b' now reserved, not live
+    REQUIRE(connections.sessionFor("conn-1").has_value());
+    CHECK(connections.sessionFor("conn-1")->elo == server_config::kInitialElo);
 
-    const ConnectionOutcome thirdPartyAttempt = connections.onConnected("conn-3", session, sessions);
+    connections.setElo("conn-1", 1350);
 
-    CHECK_FALSE(thirdPartyAttempt.accepted);
+    REQUIRE(connections.sessionFor("conn-1").has_value());
+    CHECK(connections.sessionFor("conn-1")->elo == 1350);
+}
+
+TEST_CASE("ConnectionManager: setElo on an unbound connectionId is a no-op") {
+    ConnectionManager connections;
+
+    connections.setElo("unknown-conn", 1350);  // must not throw or create a binding
+
+    CHECK_FALSE(connections.sessionFor("unknown-conn").has_value());
+}
+
+TEST_CASE("ConnectionManager: connectionsFor only returns the players of the session asked about, with two sessions live") {
+    // Guards the secondary bySession_ index added for Server-Iteration 7:
+    // connectionsFor must stay O(this session's players), not scan every
+    // connection in the server - and must still filter correctly once more
+    // than one GameSession exists at once.
+    ConnectionManager connections;
+    GameSession* sessionA = reinterpret_cast<GameSession*>(0x1);
+    GameSession* sessionB = reinterpret_cast<GameSession*>(0x2);
+
+    connections.bindKnown("a-1", sessionA, 'w');
+    connections.bindKnown("a-2", sessionA, 'b');
+    connections.bindKnown("b-1", sessionB, 'w');
+    connections.bindKnown("b-2", sessionB, 'b');
+
+    const auto forA = connections.connectionsFor(sessionA);
+    const auto forB = connections.connectionsFor(sessionB);
+
+    REQUIRE(forA.size() == 2);
+    for (const auto& [id, binding] : forA) {
+        CHECK(binding.session == sessionA);
+    }
+    REQUIRE(forB.size() == 2);
+    for (const auto& [id, binding] : forB) {
+        CHECK(binding.session == sessionB);
+    }
+
+    // Disconnecting one player of session A must not disturb session B's roster.
+    connections.onDisconnected("a-1");
+    CHECK(connections.connectionsFor(sessionA).size() == 1);
+    CHECK(connections.connectionsFor(sessionB).size() == 2);
 }
 
 TEST_CASE("ConnectionManager: bindKnown binds a connectionId directly, bypassing color assignment") {

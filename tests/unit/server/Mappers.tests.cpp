@@ -23,6 +23,28 @@ TEST_CASE("MoveRequestMapper: domain -> DTO -> JSON -> DTO -> domain round-trips
     CHECK(domainBack.to == original.to);
 }
 
+TEST_CASE("MoveRequestMapper: toDomain applies the caller-supplied requesterColor, never a color from the DTO") {
+    const MoveDto dto{1, 2, 3, 4};
+
+    const MoveRequest domain = MoveRequestMapper::toDomain(dto, 'w');
+    CHECK(domain.requesterColor == 'w');
+
+    // Default is '\0' ("no owner asserted"), not silently 'w'/'b' - callers
+    // that don't care about ownership (tests, ScriptRunner) get this for free.
+    const MoveRequest unrestricted = MoveRequestMapper::toDomain(dto);
+    CHECK(unrestricted.requesterColor == '\0');
+}
+
+TEST_CASE("MoveRequestMapper: toDto never puts requesterColor on the wire - the client is never trusted to self-report its color") {
+    const MoveRequest request{Position{1, 2}, Position{3, 4}, 'w'};
+
+    const MoveDto dto = MoveRequestMapper::toDto(request);
+    const nlohmann::json json = dto;
+
+    CHECK_FALSE(json.contains("color"));
+    CHECK_FALSE(json.contains("requesterColor"));
+}
+
 TEST_CASE("JumpDto: JSON round-trips exactly, independent of MoveDto's shape") {
     const JumpDto original{5, 6};
 

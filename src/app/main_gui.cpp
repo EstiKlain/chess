@@ -9,12 +9,14 @@
 #include <string>
 #include <vector>
 
+#include "app/MatchmakingConsole.hpp"
 #include "client_net/application/AutoReconnector.hpp"
 #include "client_net/application/ServerConnection.hpp"
 #include "client_net/infrastructure/ClientLogger.hpp"
 #include "client_net/infrastructure/WebSocketClientLink.hpp"
 #include "config.hpp"
 #include "engine/GameSnapshot.hpp"
+#include "engine/SnapshotSync.hpp"
 #include "input/Controller.hpp"
 #include "model/Board.hpp"
 #include "shared/logging/FileLogger.hpp"
@@ -36,29 +38,6 @@
 
 namespace
 {
-    // Rebuilds board's contents to match snapshot. Board has no "clear"
-    // method, so every existing piece is removed first, then re-added from
-    // the snapshot. New piece ids won't match the server's - irrelevant,
-    // since Controller only ever calls pieceAt(Position), never pieceById.
-    // width/height are set on every call, not just once, so the mirror
-    // never hardcodes a board size anywhere - it always reflects whatever
-    // the server actually says, today and in any future variant.
-    void syncBoardFromSnapshot(Board &board, const GameSnapshot &snapshot)
-    {
-        board.width = snapshot.cols;
-        board.height = snapshot.rows;
-
-        const std::vector<Piece> existing = board.pieces();
-        for (const Piece &piece : existing)
-        {
-            board.removePiece(piece.id);
-        }
-        for (const PieceSnapshot &piece : snapshot.pieces)
-        {
-            board.addPiece(piece.color, piece.kind, Position{piece.row, piece.col});
-        }
-    }
-
     // view/ takes its own minimal PlayerName type, not server::protocol's
     // PlayerDto - main_gui.cpp (which already depends on protocol/ for the
     // snapshot mapping) does this one-line conversion so view/ stays
@@ -69,7 +48,7 @@ namespace
         names.reserve(players.size());
         for (const PlayerDto &player : players)
         {
-            names.push_back(PlayerName{player.color, player.name});
+            names.push_back(PlayerName{player.color, player.name, player.elo});
         }
         return names;
     }
@@ -102,6 +81,14 @@ int main()
     std::string username;
     std::getline(std::cin, username);
 
+    // Plain std::cin - typed characters are visible on screen. Masking
+    // console input needs a character-at-a-time read (_getch() loop instead
+    // of getline) - a real but separate UX task, deliberately not done here
+    // (see docs/kungfu_chess_server_plan (1).md's Iteration 6 section).
+    std::cout << "Password: ";
+    std::string password;
+    std::getline(std::cin, password);
+
     // logs/ doubles as the natural future Docker volume mount point - the
     // path is decided here, at the composition root, and nowhere else;
     // FileLogger itself never hardcodes a path (see CLAUDE.md's
@@ -127,17 +114,23 @@ int main()
         return 1;
     }
 
-    if (!connection.login(username))
+    if (!connection.login(username, password))
     {
         std::cerr << "Login failed: " << connection.lastError() << '\n';
         return 1;
     }
 
+    if (!waitForMatchInteractively(connection))
+    {
+        std::cout << "Exiting.\n";
+        return 0;
+    }
+
     // Blocks briefly - the server sends a STATE_UPDATE immediately after a
-    // successful login (StateFanOut::broadcast), so this is a short, bounded
-    // wait, not an indefinite hang. rows/cols come from this real snapshot,
-    // not a hardcoded constant - the board opens at whatever size the
-    // server actually says.
+    // successful match (ServerTick's unconditional per-tick broadcast), so
+    // this is a short, bounded wait, not an indefinite hang. rows/cols come
+    // from this real snapshot, not a hardcoded constant - the board opens
+    // at whatever size the server actually says.
     const GameSnapshot initial = connection.awaitInitialSnapshot();
 
     // Must be declared AFTER `connection` (and everything connection itself
@@ -186,6 +179,10 @@ int main()
         // displays what STATE_UPDATE tells it.
         const GameSnapshot snapshot = connection.latestSnapshot();
         syncBoardFromSnapshot(mirrorBoard, snapshot);
+        // UX-only pre-check (see Controller::setLocalColor's doc comment) -
+        // refreshed every tick from the latest STATE_UPDATE, same as the
+        // mirror board itself, rather than set once after login.
+        controller.setLocalColor(connection.myColor());
 
         const auto animated = PieceAnimator::computePlacements(snapshot, cellSize, animLookup);
         const auto players = toPlayerNames(connection.latestPlayers());

@@ -1,4 +1,5 @@
 #include "rules/PieceRules.hpp"
+#include <cassert>
 #include <cmath>
 
 namespace pieceRules
@@ -55,20 +56,38 @@ namespace pieceRules
         return (v > 0) - (v < 0);
     }
 
-    bool isPathClear(const Board &board, int fromRow, int fromCol, int toRow, int toCol)
+    std::vector<Position> straightLinePathCells(int fromRow, int fromCol, int toRow, int toCol)
     {
         int stepRow = sign(toRow - fromRow);
         int stepCol = sign(toCol - fromCol);
 
+        std::vector<Position> cells;
         int r = fromRow + stepRow, c = fromCol + stepCol;
-        while (r != toRow || c != toCol)
+        while (true)
         {
-            if (board.pieceAt(Position{r, c}) != nullptr)
-                return false;
+            cells.push_back(Position{r, c});
+            if (r == toRow && c == toCol)
+                break;
             r += stepRow;
             c += stepCol;
         }
+        return cells;
+    }
+
+    bool isPathClearAlong(const Board &board, const std::vector<Position> &cells)
+    {
+        // Every cell except the last (the destination) must be empty -
+        // matches isPathClear's existing semantics of never checking the
+        // destination cell itself.
+        for (size_t i = 0; i + 1 < cells.size(); ++i)
+            if (board.pieceAt(cells[i]) != nullptr)
+                return false;
         return true;
+    }
+
+    bool isPathClear(const Board &board, int fromRow, int fromCol, int toRow, int toCol)
+    {
+        return isPathClearAlong(board, straightLinePathCells(fromRow, fromCol, toRow, toCol));
     }
 
     bool pawnContextGate(const Board &board, int fromRow, int fromCol, int toRow, int toCol, char color)
@@ -87,12 +106,26 @@ namespace pieceRules
     {
         rules_ = {
             {'K', {kingShape, false}},
-            {'Q', {queenShape, true}},
-            {'R', {rookShape, true}},
-            {'B', {bishopShape, true}},
+            {'Q', {queenShape, true, nullptr, nullptr, straightLinePathCells}},
+            {'R', {rookShape, true, nullptr, nullptr, straightLinePathCells}},
+            {'B', {bishopShape, true, nullptr, nullptr, straightLinePathCells}},
             {'N', {knightShape, false}},
-            {'P', {pawnShape, false, pawnCaptureShape, pawnContextGate}},
+            {'P', {pawnShape, false, pawnCaptureShape, pawnContextGate, straightLinePathCells}},
         };
+
+        // One-directional only: slides=true means checkPieceShape's
+        // blocked_path check is gated on `rule->slides && rule->pathCells`
+        // (Movement.cpp) - forgetting pathCells on a new sliding piece would
+        // make that check silently never fire (the piece could hop over
+        // others with no error). The reverse is NOT required: 'P' above has
+        // slides=false (its own path-blocking is handled separately, via
+        // pawnContextGate) yet still defines pathCells, deliberately, so
+        // RealTimeArbiter can detect mid-flight collisions along a pawn's
+        // double-step - that combination is correct, not a bug, so this
+        // assert must not require slides == (pathCells != nullptr).
+        for (const auto &[kind, rule] : rules_)
+            if (rule.slides)
+                assert(rule.pathCells && "a sliding piece must define pathCells, or blocked_path checking silently never fires");
     }
 
     const MoveRule *PieceRulesRegistry::find(char piece) const

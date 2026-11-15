@@ -88,8 +88,8 @@ TEST_CASE("DisconnectUseCase: DISCONNECT_COUNTDOWN is sent to the opponent only 
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
     ConnectionManager connections;
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
     const std::string token = sessions.registerNew("alice", 'w', &session, "white-conn");
 
     FakeTransport transport;
@@ -124,8 +124,8 @@ TEST_CASE("DisconnectUseCase: reconnecting before the window elapses cancels the
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
     ConnectionManager connections;
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
     const std::string token = sessions.registerNew("alice", 'w', &session, "white-conn");
 
     FakeTransport transport;
@@ -152,8 +152,8 @@ TEST_CASE("DisconnectUseCase: no reconnect within the window resigns the seat au
     FakeTokenGenerator tokens;
     PlayerSessionRegistry sessions(tokens);
     ConnectionManager connections;
-    connections.onConnected("white-conn", &session, sessions);
-    connections.onConnected("black-conn", &session, sessions);
+    connections.bindKnown("white-conn", &session, 'w');
+    connections.bindKnown("black-conn", &session, 'b');
     const std::string token = sessions.registerNew("alice", 'w', &session, "white-conn");
 
     FakeTransport transport;
@@ -173,6 +173,12 @@ TEST_CASE("DisconnectUseCase: no reconnect within the window resigns the seat au
     REQUIRE(snap.gameOverReason.has_value());
     CHECK(*snap.gameOverReason == GameOverReason::Resignation);
 
-    // The seat is freed for good - no reconnect using the old token works anymore.
+    // The registry entry itself is removed one tick later, not this same
+    // tick (EloUpdateUseCase still needs to read it right after this call -
+    // see DisconnectUseCase.hpp's pendingRemoval_ comment). The actual
+    // "can't rejoin a finished game" guarantee is enforced by
+    // ReconnectUseCase's own gameOver check (see its own tests), not by the
+    // registry entry's mere presence/absence.
+    useCase.tick(clock.nowMs());
     CHECK_FALSE(sessions.reconnect(token, "white-conn-3"));
 }

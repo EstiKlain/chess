@@ -24,13 +24,16 @@ MoveResult GameEngine::requestMove(const MoveRequest &request)
     if (fromRow < 0 || fromCol < 0 || fromRow >= board_.rows() || fromCol >= board_.cols())
         return {false, "outside_board"};
 
-    if (arbiter_.hasActiveMotion())
+    if (arbiter_.isPieceInFlight(fromRow, fromCol))
         return {false, "motion_in_progress"};
 
     if (arbiter_.hasActiveJumpAt(fromRow, fromCol))
         return {false, "jump_in_progress"};
 
     const Piece *selected = board_.pieceAt(Position{fromRow, fromCol});
+
+    if (selected && request.requesterColor != '\0' && selected->color != request.requesterColor)
+        return {false, "not_your_piece"};
 
     if (selected && arbiter_.isPieceResting(selected->id))
         return {false, "resting"};
@@ -52,11 +55,14 @@ MoveResult GameEngine::requestMove(const MoveRequest &request)
     if (!legality.isValid)
         return {false, legality.reason};
 
+    if (const pieceRules::MoveRule *rule = rules_.find(piece); rule && rule->pathCells)
+        m.path = rule->pathCells(fromRow, fromCol, toRow, toCol);
+
     arbiter_.startMotion(board_, m);
     return {true, legality.reason};
 }
 
-JumpResult GameEngine::requestJump(int row, int col)
+JumpResult GameEngine::requestJump(int row, int col, char requesterColor)
 {
     if (gameOver_)
         return {false, "game_over"};
@@ -68,7 +74,10 @@ JumpResult GameEngine::requestJump(int row, int col)
     if (!selected)
         return {false, "empty_source"};
 
-    if (arbiter_.isPieceResting(selected->id)) 
+    if (requesterColor != '\0' && selected->color != requesterColor)
+        return {false, "not_your_piece"};
+
+    if (arbiter_.isPieceResting(selected->id))
         return {false, "resting"};
 
     if (arbiter_.isPieceInFlight(row, col))
@@ -127,22 +136,22 @@ GameSnapshot GameEngine::snapshot() const
     for (const Piece &p : board_.pieces())
     {
         PieceSnapshot ps{p.id, p.color, p.kind, p.cell.row, p.cell.col};
-        ps.state = p.state; 
+        ps.state = p.state;
 
         if (const std::optional<PieceMove> move = arbiter_.activeMoveForPiece(p.id))
         {
             ps.motion = MotionSnapshot{move->fromRow, move->fromCol,
-                                        move->toRow, move->toCol,
-                                        move->startMs, move->durationMs};
+                                       move->toRow, move->toCol,
+                                       move->startMs, move->durationMs};
             ps.stateStartMs = move->startMs;
             ps.stateDurationMs = move->durationMs;
         }
-        else if (const std::optional<JumpMove> jump = arbiter_.activeJumpForPiece(p.id)) 
+        else if (const std::optional<JumpMove> jump = arbiter_.activeJumpForPiece(p.id))
         {
             ps.stateStartMs = jump->startMs;
             ps.stateDurationMs = jump->durationMs;
         }
-        else if (const std::optional<RestWindow> rest = arbiter_.activeRestForPiece(p.id)) 
+        else if (const std::optional<RestWindow> rest = arbiter_.activeRestForPiece(p.id))
         {
             ps.stateStartMs = rest->startMs;
             ps.stateDurationMs = rest->durationMs;

@@ -21,8 +21,8 @@ public:
     void handleJump(const std::string& connectionId, const std::string& requestId, const nlohmann::json& payload);
 
 private:
-    /// Looks up the GameSession bound to connectionId; sends INTERNAL_ERROR and returns nullopt if none is bound (should never happen in practice - rejection already happened at connect time).
-    std::optional<GameSession*> lookupBoundSession(const std::string& connectionId, const std::string& requestId);
+    /// Looks up the ConnectionBinding (session + color) bound to connectionId; sends NOT_IN_GAME and returns nullopt if none is bound (a logged-in connection that hasn't been matched into a game yet - a routine state, not a fault). Returns the full binding, not just the session, so callers can enforce piece ownership using the server-trusted color.
+    std::optional<ConnectionBinding> lookupBoundSession(const std::string& connectionId, const std::string& requestId);
 
     /// Shared tail of handleMove/handleJump: MoveResult and JumpResult have the identical {accepted, reason} shape, so this takes the two fields directly rather than being templated on the result type.
     void finishRequest(const std::string& connectionId, const std::string& requestId, GameSession& session,

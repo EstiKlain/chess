@@ -48,11 +48,14 @@ public:
     /// Removes the entry entirely - called once DisconnectUseCase resigns it; the seat is freed for good, not just "still disconnected".
     void remove(const std::string& token);
 
-    /// True if `color` is held by an entry for `session` that still exists in the registry at all (connected, or disconnected-but-still-within-its-window) - used by ConnectionManager::onConnected's seat-reservation check.
-    bool colorReserved(const GameSession* session, char color) const;
-
     /// True if any entry is currently disconnected (used by DisconnectUseCase::tick to know which tokens to check/prune).
     std::vector<std::pair<std::string, PlayerSessionEntry>> disconnectedEntries() const;
+
+    /// All (username, color) pairs currently registered for this session, connected or not - lets EloUpdateUseCase resolve both players' usernames after a game ends even if one of them is mid-disconnect-window.
+    std::vector<std::pair<std::string, char>> usernamesFor(const GameSession* session) const;
+
+    /// Every entry registered for this username, across every session it has ever played. Does not filter by gameOver - that's GameSession's concept, not this registry's.
+    std::vector<PlayerSessionEntry> entriesForUsername(const std::string& username) const;
 
 private:
     ITokenGenerator& tokenGenerator_;

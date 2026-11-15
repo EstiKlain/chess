@@ -5,9 +5,9 @@ MoveResult GameSession::requestMove(const MoveRequest& request) {
     return engine_.requestMove(request);
 }
 
-JumpResult GameSession::requestJump(int row, int col) {
+JumpResult GameSession::requestJump(int row, int col, char color) {
     std::lock_guard<std::mutex> lock(mutex_);
-    return engine_.requestJump(row, col);
+    return engine_.requestJump(row, col, color);
 }
 
 GameSnapshot GameSession::snapshot() const {

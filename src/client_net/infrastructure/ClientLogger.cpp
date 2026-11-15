@@ -2,6 +2,8 @@
 
 #include <utility>
 
+#include "shared/protocol/LogRedaction.hpp"
+
 ClientLogger::ClientLogger(IServerLink& real, ILogger& logger) : real_(real), logger_(logger) {}
 
 void ClientLogger::connect(const std::string& host, uint16_t port) {
@@ -9,7 +11,7 @@ void ClientLogger::connect(const std::string& host, uint16_t port) {
 }
 
 void ClientLogger::send(const std::string& rawJson) {
-    logger_.log(LogDirection::Sent, "", rawJson);
+    logger_.log(LogDirection::Sent, "", protocol::redactForLog(rawJson));
     real_.send(rawJson);
 }
 

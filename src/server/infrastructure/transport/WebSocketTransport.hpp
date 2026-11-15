@@ -20,7 +20,13 @@ public:
     using Server = websocketpp::server<websocketpp::config::asio>;
     using ConnectionHandle = websocketpp::connection_hdl;
 
-    WebSocketTransport();
+    // Takes the io_service to run on rather than creating its own - callers
+    // now own a single shared io_context (see main_server.cpp), so the same
+    // event loop drives both message handling and the periodic tick
+    // (AsioScheduler). Iteration 7's threading decision: one thread, one
+    // io_context, no races on ConnectionManager/PlayerSessionRegistry
+    // instead of hiding them behind locks.
+    explicit WebSocketTransport(Server::io_service_ptr ioService);
 
     void send(const std::string& connectionId, const std::string& rawJson) override;
     void broadcast(const std::string& rawJson) override;

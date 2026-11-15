@@ -57,18 +57,32 @@ FetchContent_MakeAvailable(json)
 find_package(Threads REQUIRED)
 
 # libsodium (Server-Iteration 5) - chosen for ITokenGenerator's real
-# implementation (SodiumTokenGenerator, randombytes_buf-backed) and,
-# deliberately, to be reused unchanged for Iteration 6's password hashing
-# (crypto_pwhash_str/crypto_pwhash_str_verify - Argon2id). Cross-platform on
-# purpose (over e.g. Windows CNG) - this project's confirmed eventual
-# deployment target is a Docker container, almost certainly Linux. Only
-# chess_server links this - chess_server_tests uses a FakeTokenGenerator
-# instead, exactly like it never links the real WebSocketTransport.cpp.
+# implementation (SodiumTokenGenerator, randombytes_buf-backed) and the same
+# library is reused, via a sibling class (SodiumPasswordHasher, Iteration 6),
+# for password hashing (crypto_pwhash_str/crypto_pwhash_str_verify -
+# Argon2id). Cross-platform on purpose (over e.g. Windows CNG) - this
+# project's confirmed eventual deployment target is a Docker container,
+# almost certainly Linux. Only chess_server links this - chess_server_tests
+# uses fakes instead, exactly like it never links the real
+# WebSocketTransport.cpp.
 FetchContent_Declare(libsodium
     GIT_REPOSITORY https://github.com/robinlinden/libsodium-cmake.git
     GIT_TAG master)
 set(SODIUM_DISABLE_TESTS ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(libsodium)
+
+# PostgreSQL (Server-Iteration 6) - deliberately NOT wired up here yet.
+# PostgresUserRepository.hpp/.cpp (src/server/infrastructure/persistence/)
+# exist as source but are not registered below: unlike every dependency
+# above, libpq is not realistically FetchContent-able standalone on
+# Windows/MSVC without vcpkg (which this project does not use), while
+# `apt-get install libpq-dev` + FetchContent(libpqxx) is trivial on the
+# Linux/Docker target this project is about to move to. InMemoryUserRepository
+# is the real IUserRepository implementation running today - see
+# docs/kungfu_chess_server_plan (1).md's Iteration 6 section for the full
+# reasoning and the swap-in steps (find_package(PostgreSQL), FetchContent
+# for libpqxx, and registering PostgresUserRepository.cpp into chess_server
+# below) for when the Docker phase starts.
 
 # --- chess_server: the new server executable (Server-Iteration 1) ---------
 # Iteration 1: proves a message travels client -> server -> client, with
@@ -81,23 +95,38 @@ add_executable(chess_server
     src/server/infrastructure/bus/InProcessEventBus.cpp
     src/server/infrastructure/transport/WebSocketTransport.cpp
     src/server/infrastructure/transport/LoggingTransport.cpp
+    src/server/infrastructure/time/AsioScheduler.cpp
+    src/server/infrastructure/matchmaking/InMemoryMatchmakingQueue.cpp
     src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
+    src/server/infrastructure/persistence/InMemoryUserRepository.cpp
     src/shared/logging/FileLogger.cpp
+    src/shared/protocol/LogRedaction.cpp
     src/server/application/ConnectionManager.cpp
     src/server/application/GameSession.cpp
+    src/server/application/GameSessionStore.cpp
     src/server/application/MakeMoveUseCase.cpp
     src/server/application/LoginUseCase.cpp
     src/server/application/AuthGuard.cpp
     src/server/application/StateFanOut.cpp
+    src/server/application/MatchStarter.cpp
+    src/server/application/PlayRequestUseCase.cpp
+    src/server/application/ConnectionLifecycleUseCase.cpp
+    src/server/application/ServerTick.cpp
     src/server/application/PlayerSessionRegistry.cpp
     src/server/application/DisconnectUseCase.cpp
     src/server/application/ReconnectUseCase.cpp
+    src/server/application/EloService.cpp
+    src/server/application/EloUpdateUseCase.cpp
     src/server/infrastructure/time/SystemClock.cpp
     src/server/infrastructure/security/SodiumTokenGenerator.cpp
+    src/server/infrastructure/security/SodiumPasswordHasher.cpp
     src/core/model/Board.cpp
     src/core/rules/Movement.cpp
     src/core/rules/RuleEngine.cpp
     src/core/rules/GameOverRule.cpp
+    src/core/rules/CaptureRule.cpp
+    src/core/rules/CollisionRule.cpp
+    src/core/rules/PromotionRule.cpp
     src/core/rules/PieceRules.cpp
     src/core/realtime/RealTimeArbiter.cpp
     src/core/io/BoardParser.cpp
@@ -127,6 +156,10 @@ add_executable(chess_game
     src/core/io/BoardParser.cpp
     src/core/io/BoardPrinter.cpp
     src/core/engine/GameEngine.cpp
+    src/core/engine/SnapshotSync.cpp
+    src/core/rules/CaptureRule.cpp
+    src/core/rules/CollisionRule.cpp
+    src/core/rules/PromotionRule.cpp
     src/core/rules/PieceRules.cpp
     src/core/texttests/ScriptRunner.cpp
     src/view/canvas/img.cpp
@@ -144,21 +177,17 @@ add_custom_command(TARGET chess_game POST_BUILD
         "$<TARGET_FILE_DIR:chess_game>"
 )
 
-# --- chess_gui: the real GUI, now a networked client (Server-Iteration ----
-# 3.5) - main_gui.cpp no longer constructs a local GameEngine at all, so
-# the rule-engine sources it used to link (GameEngine/RuleEngine/
-# RealTimeArbiter/PieceRules/Movement/GameOverRule/BoardParser/BoardPrinter)
-# are dropped here - that logic now lives only in chess_server. Board
-# itself is still needed (Controller's click hit-testing against a
-# network-synced mirror board), so core/model/Board.cpp + BoardMapper stay.
+
 add_executable(chess_gui
     src/app/main_gui.cpp
+    src/app/MatchmakingConsole.cpp
     src/client_net/application/ServerConnection.cpp
     src/client_net/application/AutoReconnector.cpp
     src/client_net/application/SnapshotCache.cpp
     src/client_net/infrastructure/WebSocketClientLink.cpp
     src/client_net/infrastructure/ClientLogger.cpp
     src/shared/logging/FileLogger.cpp
+    src/shared/protocol/LogRedaction.cpp
     src/view/canvas/img.cpp
     src/view/canvas/ImgCanvas.cpp
     src/view/canvas/WindowMapper.cpp
@@ -175,6 +204,7 @@ add_executable(chess_gui
     src/core/input/BoardMapper.cpp
     src/core/input/Controller.cpp
     src/core/model/Board.cpp
+    src/core/engine/SnapshotSync.cpp
     src/view/input/ClickLogger.cpp
     src/shared/protocol/mappers/GameSnapshotMapper.cpp
     src/shared/protocol/mappers/MoveRequestMapper.cpp
@@ -216,6 +246,9 @@ add_executable(chess_tests
         tests/unit/RealTimeArbiter.tests.cpp
         tests/unit/RuleEngine.tests.cpp
         tests/unit/GameOverRule.tests.cpp
+        tests/unit/CaptureRule.tests.cpp
+        tests/unit/PromotionRule.tests.cpp
+        tests/unit/CollisionRule.tests.cpp
         tests/unit/PieceRules.tests.cpp
         tests/unit/BoardGeometry.tests.cpp
         tests/unit/SpriteLoader.tests.cpp
@@ -233,6 +266,10 @@ add_executable(chess_tests
         src/core/io/BoardParser.cpp
         src/core/io/BoardPrinter.cpp
         src/core/engine/GameEngine.cpp
+        src/core/engine/SnapshotSync.cpp
+        src/core/rules/CaptureRule.cpp
+        src/core/rules/CollisionRule.cpp
+        src/core/rules/PromotionRule.cpp
         src/core/rules/PieceRules.cpp
         src/core/texttests/ScriptRunner.cpp
         src/view/canvas/img.cpp
@@ -269,6 +306,11 @@ add_executable(chess_tests
         tests/unit/server/Mappers.tests.cpp
         tests/unit/server/MakeMoveUseCase.tests.cpp
         tests/unit/server/ConnectionManager.tests.cpp
+        tests/unit/server/GameSessionStore.tests.cpp
+        tests/unit/server/InMemoryMatchmakingQueue.tests.cpp
+        tests/unit/server/PlayRequestUseCase.tests.cpp
+        tests/unit/server/ConnectionLifecycleUseCase.tests.cpp
+        tests/unit/server/ServerTick.tests.cpp
         tests/unit/server/LoginUseCase.tests.cpp
         tests/unit/server/AuthGuard.tests.cpp
         tests/unit/server/FileLogger.tests.cpp
@@ -276,27 +318,43 @@ add_executable(chess_tests
         tests/unit/server/PlayerSessionRegistry.tests.cpp
         tests/unit/server/DisconnectReconnect.tests.cpp
         tests/unit/server/ReconnectUseCase.tests.cpp
+        tests/unit/server/EloService.tests.cpp
+        tests/unit/server/EloUpdateUseCase.tests.cpp
+        tests/unit/server/LogRedaction.tests.cpp
         src/server/protocol/MessageRouter.cpp
         src/shared/protocol/mappers/MoveRequestMapper.cpp
         src/shared/protocol/mappers/GameSnapshotMapper.cpp
+        src/shared/protocol/LogRedaction.cpp
         src/server/infrastructure/bus/InProcessEventBus.cpp
+        src/server/infrastructure/matchmaking/InMemoryMatchmakingQueue.cpp
         src/server/infrastructure/persistence/InMemoryIdentityStore.cpp
+        src/server/infrastructure/persistence/InMemoryUserRepository.cpp
         src/server/infrastructure/transport/LoggingTransport.cpp
         src/shared/logging/FileLogger.cpp
         src/server/application/ConnectionManager.cpp
         src/server/application/GameSession.cpp
+        src/server/application/GameSessionStore.cpp
         src/server/application/MakeMoveUseCase.cpp
         src/server/application/LoginUseCase.cpp
         src/server/application/AuthGuard.cpp
         src/server/application/StateFanOut.cpp
+        src/server/application/MatchStarter.cpp
+        src/server/application/PlayRequestUseCase.cpp
+        src/server/application/ConnectionLifecycleUseCase.cpp
+        src/server/application/ServerTick.cpp
         src/server/application/PlayerSessionRegistry.cpp
         src/server/application/DisconnectUseCase.cpp
         src/server/application/ReconnectUseCase.cpp
+        src/server/application/EloService.cpp
+        src/server/application/EloUpdateUseCase.cpp
         src/server/infrastructure/time/SystemClock.cpp
         src/core/model/Board.cpp
         src/core/rules/Movement.cpp
         src/core/rules/RuleEngine.cpp
         src/core/rules/GameOverRule.cpp
+        src/core/rules/CaptureRule.cpp
+        src/core/rules/CollisionRule.cpp
+        src/core/rules/PromotionRule.cpp
         src/core/rules/PieceRules.cpp
         src/core/realtime/RealTimeArbiter.cpp
         src/core/io/BoardParser.cpp
@@ -335,6 +393,7 @@ add_executable(chess_tests
         src/client_net/infrastructure/ClientLogger.cpp
         src/shared/protocol/mappers/GameSnapshotMapper.cpp
         src/shared/protocol/mappers/MoveRequestMapper.cpp
+        src/shared/protocol/LogRedaction.cpp
     )
     target_include_directories(chess_client_tests PRIVATE src src/core third_party)
     target_link_libraries(chess_client_tests PRIVATE

@@ -36,12 +36,17 @@ public:
     GameEngine(Board board, pieceRules::PieceRulesRegistry rules)
         : board_(std::move(board)), rules_(std::move(rules)) {}
 
-    // Fixed check order (agreed on beforehand): game_over -> motion_in_progress
-    // -> RuleEngine -> startMotion. Always returns a MoveResult.
+    // Fixed check order (agreed on beforehand): game_over -> piece already
+    // in flight -> jump in progress -> resting -> RuleEngine -> startMotion.
+    // "motion_in_progress" now means *this piece* is already moving, not
+    // that any motion anywhere is active — arbitrarily many pieces may be
+    // in flight at once.
     MoveResult requestMove(const MoveRequest &request);
 
     // Symmetric to requestMove, for the jump mechanic (was sendJump).
-    JumpResult requestJump(int row, int col);
+    // requesterColor follows the same '\0' == "no owner asserted" convention
+    // as MoveRequest::requesterColor.
+    JumpResult requestJump(int row, int col, char requesterColor = '\0');
 
     // Advances the clock and lets the arbiter resolve anything that is due.
     void wait(long ms);
@@ -57,7 +62,6 @@ public:
     // call (Stage/Iteration D) - see GameSnapshot.hpp for why.
     GameSnapshot snapshot() const;
 
-    Board &board() { return board_; }
     const Board &board() const { return board_; }
     bool gameOver() const { return gameOver_; }
 
@@ -70,4 +74,3 @@ private:
     long elapsedMs_ = 0;
     RealTimeArbiter arbiter_;
 };
-

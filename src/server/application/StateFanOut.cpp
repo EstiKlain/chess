@@ -16,7 +16,8 @@ void broadcast(GameSession& session, ConnectionManager& connections, IIdentitySt
     std::vector<PlayerDto> players;
     players.reserve(recipients.size());
     for (const auto& [id, binding] : recipients) {
-        players.push_back(PlayerDto{id, std::string(1, binding.color), identities.usernameFor(id).value_or("")});
+        players.push_back(
+            PlayerDto{id, std::string(1, binding.color), identities.usernameFor(id).value_or(""), binding.elo});
     }
 
     const GameSnapshot snapshot = session.snapshot();

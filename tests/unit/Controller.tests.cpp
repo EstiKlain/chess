@@ -20,7 +20,7 @@ namespace
             requests.push_back(request);
         }
 
-        void requestJump(int row, int col)
+        void requestJump(int row, int col, char /*color*/)
         {
             jumps.emplace_back(row, col);
         }
@@ -111,6 +111,56 @@ TEST_CASE("invalid_clicks_do_not_mutate_state")
     CHECK(tokenAt(b, 0, 2) == ".");
     CHECK(engine.requests.empty());
 }
+TEST_CASE("setLocalColor_blocks_selecting_the_opponent_s_piece")
+{
+    Board b = makeBoard({{"wR", ".", "bP"}});
+    FakeGameEngine engine;
+    Controller controller(b, engine);
+    controller.setLocalColor('w');
+
+    clickCell(controller, 0, 2);  // the black pawn - not ours
+
+    CHECK_FALSE(controller.hasSelection());
+}
+
+TEST_CASE("setLocalColor_still_allows_selecting_our_own_piece")
+{
+    Board b = makeBoard({{"wR", ".", "bP"}});
+    FakeGameEngine engine;
+    Controller controller(b, engine);
+    controller.setLocalColor('w');
+
+    clickCell(controller, 0, 0);  // our own rook
+
+    CHECK(controller.hasSelection());
+}
+
+TEST_CASE("setLocalColor_injects_the_local_color_into_outgoing_MoveRequest")
+{
+    Board b = makeBoard({{"wR", ".", "."}});
+    FakeGameEngine engine;
+    Controller controller(b, engine);
+    controller.setLocalColor('w');
+
+    clickCell(controller, 0, 0);
+    clickCell(controller, 0, 2);
+
+    REQUIRE(engine.requests.size() == 1);
+    CHECK(engine.requests[0].requesterColor == 'w');
+}
+
+TEST_CASE("default_localColor_leaves_selection_unrestricted_for_ScriptRunner_and_tests")
+{
+    Board b = makeBoard({{"wR", ".", "bP"}});
+    FakeGameEngine engine;
+    Controller controller(b, engine);
+    // setLocalColor is never called - matches ScriptRunner/every other test in this file.
+
+    clickCell(controller, 0, 2);  // the black pawn
+
+    CHECK(controller.hasSelection());
+}
+
 TEST_CASE("jump_click_outside_board_is_ignored")
 {
     Board b = makeBoard({{"wR", ".", "."}});
@@ -120,6 +170,18 @@ TEST_CASE("jump_click_outside_board_is_ignored")
     controller.handleJumpClick(-1, 50);
     controller.handleJumpClick(1000, 50);
     controller.handleJumpClick(50, 1000);
+
+    CHECK(engine.jumps.empty());
+}
+
+TEST_CASE("setLocalColor_blocks_jump_clicking_the_opponent_s_piece")
+{
+    Board b = makeBoard({{"wR", ".", "bP"}});
+    FakeGameEngine engine;
+    Controller controller(b, engine);
+    controller.setLocalColor('w');
+
+    controller.handleJumpClick(50 + 2 * config::CELL_SIZE, 50);  // the black pawn
 
     CHECK(engine.jumps.empty());
 }

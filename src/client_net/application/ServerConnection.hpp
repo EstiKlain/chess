@@ -41,6 +41,13 @@
 /// ever ends a reconnect episode without Success.
 enum class ReconnectOutcome { Success, Retry };
 
+// State of the current PLAY request, if any. Not touched by login() itself -
+// only requestPlay() moves it out of Idle. AlreadyInGame is terminal (unlike
+// NoMatch, retrying PLAY would just get the same answer) - it means this
+// account has a live game bound to a different connectionId, e.g. the
+// process was restarted while a match was still running elsewhere.
+enum class MatchmakingState { Idle, Searching, Matched, NoMatch, AlreadyInGame };
+
 class ServerConnection {
 public:
     explicit ServerConnection(IServerLink& link);
@@ -48,8 +55,8 @@ public:
     /// Opens the connection to host:port and blocks until the handshake completes. Throws std::runtime_error on failure.
     void connect(const std::string& host, uint16_t port);
 
-    /// Sends LOGIN and blocks until LOGIN_OK or ERROR arrives. Returns true on LOGIN_OK; on false, lastError() holds the server's message.
-    bool login(const std::string& username);
+    /// Sends LOGIN and blocks until LOGIN_OK or ERROR arrives. Returns true on LOGIN_OK; on false, lastError() holds the server's message (e.g. INVALID_CREDENTIALS for a wrong password on an existing username - a brand-new username registers automatically with the given password).
+    bool login(const std::string& username, const std::string& password);
 
     /// The server's error message from the most recent failed login, if any.
     const std::string& lastError() const;
@@ -57,16 +64,27 @@ public:
     /// Blocks until at least one STATE_UPDATE has been received (the server's tick loop broadcasts unconditionally, so this resolves within one tick interval of a successful login). Used to learn the real board dimensions before constructing anything geometry-dependent, instead of assuming a fixed board size anywhere in client code.
     GameSnapshot awaitInitialSnapshot();
 
-    /// Controller-compatible requester interface - matches Controller's template constructor exactly.
+    /// Controller-compatible requester interface - matches Controller's template constructor exactly. The color parameter is accepted only for signature compatibility with GameEngine::requestJump - never sent over the wire (the server only trusts its own ConnectionBinding, see MoveRequestMapper::toDomain's doc comment).
     void requestMove(const MoveRequest& request);
-    void requestJump(int row, int col);
+    void requestJump(int row, int col, char color = '\0');
 
     /// Returns a copy of the most recently received snapshot/roster. Thread-safe (mutex-guarded) - whatever thread the link delivers messages on writes, the render-loop thread reads, same defensive pattern already used by GameSession for the analogous cross-thread problem.
     GameSnapshot latestSnapshot() const;
     std::vector<PlayerDto> latestPlayers() const;
 
-    /// The sessionToken received in LOGIN_OK's payload (Server-Iteration 5), if login has succeeded - nullopt otherwise. Not yet consumed by anything in this class; stored so a future RECONNECT flow doesn't need to touch LOGIN_OK handling again.
+    /// This connection's own assigned color ('w'/'b'), learned from the "role" field of the most recent STATE_UPDATE. '\0' until the first STATE_UPDATE arrives after login.
+    char myColor() const;
+
+    /// The sessionToken received in MATCH_FOUND's payload, once a PLAY has matched - nullopt before that (there is no seat to reconnect to before a match exists).
     std::optional<std::string> sessionToken() const;
+
+    /// Sends PLAY and returns immediately - never blocks, so the caller can render "Searching..." while waiting. Resolves via matchmakingState(): Matched on MATCH_FOUND, NoMatch on a NO_MATCH_FOUND ERROR.
+    void requestPlay();
+
+    MatchmakingState matchmakingState() const;
+
+    /// The opponent's username from the most recent MATCH_FOUND, if matchmakingState() is Matched.
+    std::optional<std::string> matchedOpponentName() const;
 
     /// Seconds remaining before the opponent auto-resigns, per the most recent DISCONNECT_COUNTDOWN - nullopt when no countdown is in effect (never started, cancelled by a successful reconnect, or the game is already over).
     std::optional<int> latestDisconnectCountdown() const;
@@ -113,4 +131,8 @@ private:
     // requestJump) and AutoReconnector's background worker thread (via
     // reconnect()) - a plain int here would be a data race.
     std::atomic<int> requestIdCounter_{0};
+
+    mutable std::mutex matchmakingMutex_;
+    MatchmakingState matchmakingState_ = MatchmakingState::Idle;
+    std::optional<std::string> matchedOpponentName_;
 };
